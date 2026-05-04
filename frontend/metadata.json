@@ -1,0 +1,6 @@
+{
+  "name": "Early Prediction of Sepsis",
+  "description": "A clinical dashboard for early sepsis detection in resource-limited hospitals, featuring AI risk analysis and qSOFA cross-validation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

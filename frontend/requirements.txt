@@ -1,0 +1,11 @@
+# Data Science & ML
+pandas
+numpy
+darts
+torch
+scikit-learn
+
+# API / Integration
+flask
+flask-cors
+gunicorn

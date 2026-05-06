@@ -3,5 +3,4 @@ uvicorn[standard]>=0.29.0
 xgboost>=2.0.3
 lightgbm>=4.3.0
 numpy>=1.26.0
-scikit-learn>=1.4.0
 pydantic>=2.0.0

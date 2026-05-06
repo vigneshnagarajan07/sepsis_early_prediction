@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
-# Coimbatore Sepsis AI — Backend Startup
+# Sepsis AI — Backend Startup
 # Run this from the sepsis-backend/ directory.
 # ─────────────────────────────────────────────────────────────────────────────
 set -e

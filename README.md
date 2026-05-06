@@ -25,7 +25,7 @@
 
 ## Overview
 
-This project implements an **early-warning AI system** for sepsis prediction tailored to the clinical context of Coimbatore, India. By fusing routine vitals, bedside lab values, and basic demographics, the ensemble model produces a real-time sepsis probability score along with clinically interpretable feature attributions (surrogate SHAP drivers), alerting clinicians before the patient deteriorates.
+This project implements an **early-warning AI system** for sepsis prediction tailored to resource-limited clinical settings. By fusing routine vitals, bedside lab values, and basic demographics, the ensemble model produces a real-time sepsis probability score along with clinically interpretable feature attributions (surrogate SHAP drivers), alerting clinicians before the patient deteriorates.
 
 ---
 

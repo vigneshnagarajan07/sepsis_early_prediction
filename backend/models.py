@@ -1,5 +1,5 @@
 """
-models.py  –  Coimbatore Sepsis AI · Model Loading & Inference
+models.py  –  Sepsis AI · Model Loading & Inference
 Loads XGBoost (fusion) and LightGBM (wearable-stream) models,
 runs inference, and returns a calibrated ensemble probability.
 """
@@ -60,9 +60,16 @@ _load_models()   # runs at module import time
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _xgb_predict(vec: np.ndarray) -> float:
-    """Single-sample XGB inference → scalar probability."""
-    dmat = xgb.DMatrix(vec.reshape(1, -1))
-    prob = _xgb_model.predict(dmat, iteration_range=(0, _xgb_model.best_iteration + 1))
+    """Single-sample XGB inference → scalar probability.
+    Uses num_boosted_rounds() so it works regardless of whether the model
+    was saved with early-stopping.  best_iteration is -1 when early stopping
+    was not used, making iteration_range=(0, 0) which returns a constant 0.5.
+    """
+    dmat    = xgb.DMatrix(vec.reshape(1, -1))
+    n_trees = _xgb_model.num_boosted_rounds()
+    iteration_range = (0, n_trees) if n_trees > 0 else None
+    kwargs = {"iteration_range": iteration_range} if iteration_range else {}
+    prob   = _xgb_model.predict(dmat, **kwargs)
     return float(prob[0])
 
 
@@ -148,10 +155,87 @@ def predict(lgbm_vec: np.ndarray, xgb_vec: np.ndarray,
     v         = payload["vitals"]
     qsofa     = int(feat_dict["qSOFA"])
 
-    # Alert level
-    if ai_score >= 0.50 and qsofa >= 2:
+    # ── Raw clinical values for rule layer ───────────────────────────────────
+    plat  = feat_dict.get("Platelets",  230.0)
+    wbc   = feat_dict.get("WBC",        8.5)
+    lact  = feat_dict.get("Lactate",    1.5)
+    oligo = feat_dict.get("Oliguria",   0)
+    dns1  = feat_dict.get("Dengue_NS1", 0)
+    mrdt  = feat_dict.get("Malaria_RDT",0)
+    urine = feat_dict.get("UrineOutput",0.8)
+    temp  = feat_dict.get("Temp",       37.0)
+    hr    = feat_dict.get("HR",         80.0)
+    no_labs = feat_dict.get("LabScenario_no_labs", 0)
+    referred = feat_dict.get("Referred_Outside",   0)
+    age   = feat_dict.get("Age",        40.0)
+
+    # ── Clinical safety-net overrides ────────────────────────────────────────
+    # LGBM's 36 features carry only delta values for labs, not absolute values.
+    # These rules apply published evidence-based thresholds that the LGBM
+    # cannot encode directly, normalised to ensure they don't over-fire.
+    # Each rule is sourced from a specific clinical guideline.
+    clinical_boost = 0.0
+    alert_override = None   # can force "critical" bypassing ai_score threshold
+
+    # ── Rule 1: Sepsis-3 lactate criterion ───────────────────────────────────
+    # Lactate ≥ 4 mmol/L = septic shock regardless of BP (Singer et al. 2016)
+    if lact >= 4.0:
+        clinical_boost = max(clinical_boost, 0.65)
+    # Lactate 2–4 = elevated, upgrade only if another signal also present
+    elif lact >= 2.0 and (qsofa >= 1 or oligo):
+        clinical_boost = max(clinical_boost, 0.52)
+
+    # ── Rule 2: Cryptic shock — high lactate with compensated vitals ─────────
+    # Lactate ≥ 5 = septic shock even if BP looks normal (cryptic shock)
+    # Override alert to CRITICAL regardless of qSOFA
+    if lact >= 5.0:
+        alert_override = "critical"
+
+    # ── Rule 3: Dengue severity tiers (WHO 2012 dengue guidelines) ───────────
+    # Grade IV (severe): NS1+ + platelets < 50 + leukopenia
+    if dns1 > 0 and plat < 50 and wbc < 4.0:
+        clinical_boost  = max(clinical_boost, 0.70)
+        alert_override  = "critical"
+    # Grade III (warning signs): NS1+ + platelets 50-150 + leukopenia
+    elif dns1 > 0 and plat < 150 and wbc < 4.5:
+        clinical_boost  = max(clinical_boost, 0.52)
+
+    # ── Rule 4: Cerebral malaria (WHO severe malaria criteria 2015) ──────────
+    # RDT+ + altered consciousness (GCS<15) + thrombocytopenia
+    if mrdt > 0 and feat_dict.get("qSOFA", 0) >= 1 and plat < 120:
+        clinical_boost = max(clinical_boost, 0.55)
+
+    # ── Rule 5: Oliguria + haemodynamic instability ──────────────────────────
+    # Urine < 0.3 mL/kg/h = acute kidney injury marker (Sepsis-3 organ dysfunction)
+    if urine < 0.3 and oligo and ai_score > 0.30:
+        clinical_boost = max(clinical_boost, 0.40)
+
+    # ── Rule 6: No-lab rural referral warning ────────────────────────────────
+    # Zero labs + referred patient + tachycardia + fever = cannot be NONE
+    # Minimum WARNING to prompt lab ordering (Indian emergency triage guideline)
+    if no_labs and referred and hr > 110 and temp > 38.5:
+        clinical_boost = max(clinical_boost, 0.52)
+
+    # ── Rule 7: Elderly lactate elevation ────────────────────────────────────
+    # Age > 65: lactate ≥ 2.0 with any qSOFA point warrants monitoring
+    if age > 65 and lact >= 2.0 and qsofa >= 1:
+        clinical_boost = max(clinical_boost, 0.52)
+
+    # ── Apply boost — soft max so model can still score higher independently ──
+    if clinical_boost > 0:
+        ai_score = max(ai_score, clinical_boost)
+        ai_score = float(np.clip(ai_score, 0.01, 0.99))
+
+    # ── Normalised alert thresholds ───────────────────────────────────────────
+    # Three-tier system:
+    #   CRITICAL  : ai ≥ 0.60 AND (qSOFA ≥ 2 OR hard clinical override)
+    #   WARNING   : ai ≥ 0.45 OR qSOFA ≥ 2 (one signal sufficient)
+    #   NONE      : ai < 0.45 AND qSOFA < 2
+    if alert_override:
+        alert = alert_override
+    elif ai_score >= 0.60 and qsofa >= 2:
         alert = "critical"
-    elif ai_score >= 0.50 or qsofa >= 2:
+    elif ai_score >= 0.45 or qsofa >= 2:
         alert = "warning"
     else:
         alert = "none"

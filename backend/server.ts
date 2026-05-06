@@ -1,5 +1,5 @@
 /**
- * server.ts  –  Coimbatore Sepsis AI  ·  Express dev-server
+ * server.ts  –  Sepsis AI  ·  Express dev-server
  *
  * Responsibilities
  *   1.  Serve the Vite dev / prod frontend

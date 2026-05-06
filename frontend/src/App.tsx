@@ -27,12 +27,14 @@ interface PatientDemographics {
   bmi: number;
   diabetes: boolean;
   ckd: boolean; // Chronic Kidney Disease
+  cirrhosis: boolean;
+  malignancy: boolean;
+  immunosuppression: boolean;
   priorAntibiotics: boolean; // Critical Risk Factor
   referredFromOutside: boolean; // Critical Risk Factor
   gramNegativeRisk: boolean;
   malariaEndemic: boolean;
   dengueEndemic: boolean;
-  covidPrevalence: boolean;
 }
 
 interface Vitals {
@@ -76,12 +78,14 @@ export default function SepsisDashboard() {
     bmi: 24.5,
     diabetes: false,
     ckd: false,
+    cirrhosis: false,
+    malignancy: false,
+    immunosuppression: false,
     priorAntibiotics: false,
     referredFromOutside: false,
     gramNegativeRisk: false,
     malariaEndemic: false,
     dengueEndemic: false,
-    covidPrevalence: false,
   });
 
   // 2. Vitals (Main Section 1)
@@ -129,21 +133,29 @@ export default function SepsisDashboard() {
     qsofaScore: number;
     alertLevel: 'none' | 'warning' | 'critical';
     attentionWeights: number[];
+    modelScores: Record<string, number>;
+    featureSummary: { crt: number; shockIndex: number; labScenario: string };
+    shapDrivers: Array<{ feature: string; value: number; shap: number }>;
+    deltaInfo?: {
+      sourceReadings: number; intervalSec: number;
+      deltaHR: number; deltaMAP: number; deltaResp: number; deltaTemp: number;
+      deltaLactate: number; deltaCreatinine: number;
+    };
   } | null>(null);
+
+  // Previous lab draw — sent to backend to compute Delta_3h_Lactate etc.
+  const [previousLabs, setPreviousLabs] = useState<Labs | null>(null);
 
   // --- Logic ---
 
-  const calculateQsofa = (v: Vitals) => {
-    let score = 0;
-    if (v.resp >= 22) score += 1;
-    if (v.gcs < 15) score += 1;
-    if (v.systolicBp <= 100) score += 1;
-    return score;
-  };
+  // qSOFA is computed server-side with full clinical logic; no local duplicate needed.
 
   const runAnalysis = async () => {
     setIsAnalyzing(true);
     setResult(null);
+
+    // Snapshot current labs as "previous" for the NEXT call's delta computation
+    const labsSnapshot = labs;
 
     try {
       const response = await fetch('/api/predict', {
@@ -152,7 +164,12 @@ export default function SepsisDashboard() {
         body: JSON.stringify({
           vitals,
           labs,
-          demographics
+          demographics,
+          // Dynamic 3h delta fields
+          vitalsHistory,
+          previousLabs: previousLabs ?? undefined,
+          // Simulation = 5s cadence; manual single-snapshot = 0 (backend uses oldest buffer entry)
+          intervalSeconds: isSimulating ? 5 : 0,
         })
       });
 
@@ -169,6 +186,8 @@ export default function SepsisDashboard() {
       }
       const analysis = await response.json();
       setResult(analysis);
+      // Store current labs for delta computation on next call
+      setPreviousLabs(labsSnapshot);
     } catch (error) {
       console.error("Inference Error:", error);
     } finally {
@@ -320,6 +339,39 @@ export default function SepsisDashboard() {
                       <option>Yes</option>
                     </select>
                   </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-brand-text">Cirrhosis</label>
+                    <select 
+                      value={demographics.cirrhosis ? 'Yes' : 'No'}
+                      onChange={e => setDemographics({...demographics, cirrhosis: e.target.value === 'Yes'})}
+                      className="w-full bg-[#fafafa] border border-brand-border rounded px-2 py-1.5 text-[13px] outline-none appearance-none cursor-pointer"
+                    >
+                      <option>No</option>
+                      <option>Yes</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-brand-text">Malignancy</label>
+                    <select 
+                      value={demographics.malignancy ? 'Yes' : 'No'}
+                      onChange={e => setDemographics({...demographics, malignancy: e.target.value === 'Yes'})}
+                      className="w-full bg-[#fafafa] border border-brand-border rounded px-2 py-1.5 text-[13px] outline-none appearance-none cursor-pointer"
+                    >
+                      <option>No</option>
+                      <option>Yes</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-brand-text">Immunosuppression</label>
+                  <select 
+                    value={demographics.immunosuppression ? 'Yes' : 'No'}
+                    onChange={e => setDemographics({...demographics, immunosuppression: e.target.value === 'Yes'})}
+                    className="w-full bg-[#fafafa] border border-brand-border rounded px-2 py-1.5 text-[13px] outline-none appearance-none cursor-pointer"
+                  >
+                    <option>No</option>
+                    <option>Yes</option>
+                  </select>
                 </div>
 
                 {/* Critical Risk Factors */}
@@ -366,11 +418,6 @@ export default function SepsisDashboard() {
                       label="Dengue Endemic" 
                       active={demographics.dengueEndemic} 
                       onClick={() => setDemographics({...demographics, dengueEndemic: !demographics.dengueEndemic})} 
-                    />
-                    <RiskToggle 
-                      label="COVID-19 Prevalence" 
-                      active={demographics.covidPrevalence} 
-                      onClick={() => setDemographics({...demographics, covidPrevalence: !demographics.covidPrevalence})} 
                     />
                   </div>
                 </div>
@@ -463,8 +510,30 @@ export default function SepsisDashboard() {
                     <VitalInput label="Urine (mL/kg/h)" value={vitals.urineOutput} history={vitalsHistory.urineOutput} min={0} max={3.0} step={0.1} onChange={v => updateVital('urineOutput', v)} />
                     <VitalInput label="GCS Score" value={vitals.gcs} history={vitalsHistory.gcs} min={3} max={15} onChange={v => updateVital('gcs', v)} />
                     <div className="vital-input flex flex-col gap-1">
-                      <span className="text-[10px] text-brand-muted uppercase font-bold">Delta HR (3h)</span>
-                      <input type="number" value={12} readOnly className="w-full bg-[#edf2f7] border border-brand-border rounded p-2 text-[13px] outline-none" />
+                      <span className="text-[10px] text-brand-muted uppercase font-bold">
+                        Delta HR (3h)
+                        {result?.deltaInfo && result.deltaInfo.sourceReadings > 1 && (
+                          <span className="ml-1 text-brand-success opacity-70">●</span>
+                        )}
+                      </span>
+                      <div className={`w-full border rounded p-2 text-[13px] font-mono flex items-center gap-1 ${
+                        result?.deltaInfo && result.deltaInfo.sourceReadings > 1
+                          ? 'bg-white border-brand-border'
+                          : 'bg-[#edf2f7] border-brand-border text-brand-muted'
+                      }`}>
+                        {result?.deltaInfo && result.deltaInfo.sourceReadings > 1 ? (
+                          <>
+                            <span className={result.deltaInfo.deltaHR > 5 ? 'text-brand-danger' : result.deltaInfo.deltaHR < -5 ? 'text-brand-success' : ''}>
+                              {result.deltaInfo.deltaHR > 0 ? '+' : ''}{result.deltaInfo.deltaHR}
+                            </span>
+                            <span className="text-[9px] text-brand-muted ml-auto">
+                              {result.deltaInfo.sourceReadings}pts
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-brand-muted text-[11px]">— awaiting history</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -495,21 +564,79 @@ export default function SepsisDashboard() {
                   <span className="text-[10px] text-brand-muted font-bold uppercase tracking-widest">Informative Missingness Active</span>
                 </header>
 
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3">
-                  <div className="space-y-3">
-                    <LabRow label="Serum Lactate" value={labs.lactate.value} performed={labs.lactate.performed} onValueChange={v => updateLab('lactate', 'value', v)} onToggle={p => updateLab('lactate', 'performed', p)} />
-                    <LabRow label="Procalcitonin" value={labs.pct.value} performed={labs.pct.performed} onValueChange={v => updateLab('pct', 'value', v)} onToggle={p => updateLab('pct', 'performed', p)} />
-                    <LabRow label="WBC Count" value={labs.wbc.value} performed={labs.wbc.performed} onValueChange={v => updateLab('wbc', 'value', v)} onToggle={p => updateLab('wbc', 'performed', p)} />
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+                  <div className="space-y-4">
+                    <LabRow
+                      label="Serum Lactate"
+                      unit="mmol/L" refRange="< 2.0" refMin={0.1} refMax={2.0}
+                      value={labs.lactate.value} performed={labs.lactate.performed}
+                      min={0.1} max={20} step={0.1}
+                      onValueChange={v => updateLab('lactate', 'value', v)}
+                      onToggle={p => updateLab('lactate', 'performed', p)}
+                    />
+                    <LabRow
+                      label="Procalcitonin"
+                      unit="ng/mL" refRange="< 0.25" refMin={0} refMax={0.25}
+                      value={labs.pct.value} performed={labs.pct.performed}
+                      min={0.001} max={1000} step={0.01}
+                      onValueChange={v => updateLab('pct', 'value', v)}
+                      onToggle={p => updateLab('pct', 'performed', p)}
+                    />
+                    <LabRow
+                      label="WBC Count"
+                      unit="×10³/µL" refRange="4.0–11.0" refMin={4.0} refMax={11.0}
+                      value={labs.wbc.value} performed={labs.wbc.performed}
+                      min={0.1} max={200} step={0.1}
+                      onValueChange={v => updateLab('wbc', 'value', v)}
+                      onToggle={p => updateLab('wbc', 'performed', p)}
+                    />
                   </div>
-                  <div className="space-y-3">
-                    <LabRow label="Platelets" value={labs.platelets.value} performed={labs.platelets.performed} onValueChange={v => updateLab('platelets', 'value', v)} onToggle={p => updateLab('platelets', 'performed', p)} />
-                    <LabRow label="Creatinine" value={labs.creatinine.value} performed={labs.creatinine.performed} onValueChange={v => updateLab('creatinine', 'value', v)} onToggle={p => updateLab('creatinine', 'performed', p)} />
+                  <div className="space-y-4">
+                    <LabRow
+                      label="Platelets"
+                      unit="×10³/µL" refRange="150–450" refMin={150} refMax={450}
+                      value={labs.platelets.value} performed={labs.platelets.performed}
+                      min={1} max={1500} step={1}
+                      onValueChange={v => updateLab('platelets', 'value', v)}
+                      onToggle={p => updateLab('platelets', 'performed', p)}
+                    />
+                    <LabRow
+                      label="Creatinine"
+                      unit="mg/dL" refRange="0.6–1.2" refMin={0.6} refMax={1.2}
+                      value={labs.creatinine.value} performed={labs.creatinine.performed}
+                      min={0.1} max={30} step={0.01}
+                      onValueChange={v => updateLab('creatinine', 'value', v)}
+                      onToggle={p => updateLab('creatinine', 'performed', p)}
+                    />
                   </div>
-                  <div className="space-y-3">
-                    <LabRow label="Bilirubin" value={labs.bilirubin.value} performed={labs.bilirubin.performed} onValueChange={v => updateLab('bilirubin', 'value', v)} onToggle={p => updateLab('bilirubin', 'performed', p)} />
+                  <div className="space-y-4">
+                    <LabRow
+                      label="Bilirubin"
+                      unit="mg/dL" refRange="< 1.2" refMin={0} refMax={1.2}
+                      value={labs.bilirubin.value} performed={labs.bilirubin.performed}
+                      min={0.1} max={30} step={0.1}
+                      onValueChange={v => updateLab('bilirubin', 'value', v)}
+                      onToggle={p => updateLab('bilirubin', 'performed', p)}
+                    />
                     <div className="grid grid-cols-2 gap-4">
-                      <LabRow label="Dengue" value={labs.dengueNS1.value} performed={labs.dengueNS1.performed} onValueChange={v => updateLab('dengueNS1', 'value', v)} type="select" options={[{ l: 'Neg', v: 0 }, { l: 'Pos', v: 1 }]} onToggle={p => updateLab('dengueNS1', 'performed', p)} />
-                      <LabRow label="Malaria" value={labs.malariaRDT.value} performed={labs.malariaRDT.performed} onValueChange={v => updateLab('malariaRDT', 'value', v)} type="select" options={[{ l: 'Neg', v: 0 }, { l: 'Pos', v: 1 }]} onToggle={p => updateLab('malariaRDT', 'performed', p)} />
+                      <LabRow
+                        label="Dengue NS1"
+                        unit="" refRange="Neg" refMin={0} refMax={0}
+                        value={labs.dengueNS1.value} performed={labs.dengueNS1.performed}
+                        min={0} max={1} step={1}
+                        type="select" options={[{ l: 'Negative', v: 0 }, { l: 'Positive', v: 1 }]}
+                        onValueChange={v => updateLab('dengueNS1', 'value', v)}
+                        onToggle={p => updateLab('dengueNS1', 'performed', p)}
+                      />
+                      <LabRow
+                        label="Malaria RDT"
+                        unit="" refRange="Neg" refMin={0} refMax={0}
+                        value={labs.malariaRDT.value} performed={labs.malariaRDT.performed}
+                        min={0} max={1} step={1}
+                        type="select" options={[{ l: 'Negative', v: 0 }, { l: 'Positive', v: 1 }]}
+                        onValueChange={v => updateLab('malariaRDT', 'value', v)}
+                        onToggle={p => updateLab('malariaRDT', 'performed', p)}
+                      />
                     </div>
                   </div>
                 </div>
@@ -554,13 +681,15 @@ export default function SepsisDashboard() {
                     }`}>
                       <div className={`text-3xl font-black ${
                         result.alertLevel === 'critical' ? 'text-brand-danger' :
-                        result.alertLevel === 'text-brand-text'
+                        result.alertLevel === 'warning'  ? 'text-brand-warning' :
+                        'text-brand-muted'
                       }`}>
                         {result.qsofaScore}<span className="text-xl opacity-40">/3</span>
                       </div>
                       <div className={`text-[10px] font-bold uppercase tracking-widest ${
                         result.alertLevel === 'critical' ? 'text-brand-danger' :
-                        result.alertLevel === 'text-brand-muted'
+                        result.alertLevel === 'warning'  ? 'text-brand-warning' :
+                        'text-brand-muted'
                       }`}>qSOFA Score</div>
                     </div>
                     
@@ -602,13 +731,27 @@ export default function SepsisDashboard() {
                     </div>
                     <div className="bg-[#f8fafc] border border-brand-border rounded p-4 text-[11px] text-brand-muted h-[160px] flex flex-col items-center justify-center relative overflow-hidden">
                       <div className="absolute top-2 left-2 font-mono text-[8px] opacity-30 select-none">SHA_V1_INF</div>
-                      <div className="flex flex-col gap-2 w-full max-w-[240px]">
-                        <ShapBar label="Prior Antibiotics" value={85} color="var(--color-brand-danger)" />
-                        <ShapBar label="Serum Lactate" value={72} color="var(--color-brand-warning)" />
-                        <ShapBar label="Resp Rate" value={64} color="var(--color-brand-warning)" />
-                        <ShapBar label="Heart Rate" value={45} color="var(--color-brand-primary)" />
+                      {result?.shapDrivers?.length ? (
+                        <div className="flex flex-col gap-2 w-full max-w-[240px]">
+                          {result.shapDrivers.slice(0, 4).map(d => (
+                            <ShapBar
+                              key={d.feature}
+                              label={d.feature.replace(/_/g, ' ')}
+                              value={Math.round(Math.abs(d.shap) * 200)}
+                              color={d.shap > 0 ? 'var(--color-brand-danger)' : 'var(--color-brand-success)'}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2 w-full max-w-[240px] opacity-40">
+                          <ShapBar label="Run analysis to load" value={0} color="var(--color-brand-muted)" />
+                        </div>
+                      )}
+                      <div className="mt-auto pt-2 text-[9px] font-medium italic">
+                        {result?.shapDrivers?.length
+                          ? `Top driver: ${result.shapDrivers[0]?.feature.replace(/_/g, ' ')}`
+                          : 'No analysis yet'}
                       </div>
-                      <div className="mt-auto pt-2 text-[9px] font-medium italic">High Influence: Prior Antibiotics, Lactate</div>
                     </div>
                   </div>
 
@@ -849,7 +992,14 @@ function VitalInput({ label, value, history = [], min, max, step = 1, onChange }
 }) {
   const [showDelta, setShowDelta] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  
+  // Local string state prevents glitching when typing negatives or decimals mid-entry
+  const [inputStr, setInputStr] = useState(value.toFixed(step < 1 ? 1 : 0));
+
+  // Keep local string in sync when value changes externally (e.g. simulation)
+  useEffect(() => {
+    setInputStr(value.toFixed(step < 1 ? 1 : 0));
+  }, [value, step]);
+
   const delta = useMemo(() => {
     if (history.length < 2) return 0;
     return value - history[0];
@@ -857,6 +1007,20 @@ function VitalInput({ label, value, history = [], min, max, step = 1, onChange }
 
   const isPositive = delta > 0;
   const absDelta = Math.abs(delta).toFixed(step < 1 ? 1 : 0);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setInputStr(raw);
+    const parsed = parseFloat(raw);
+    if (!isNaN(parsed)) {
+      onChange(Math.min(max, Math.max(min, parsed)));
+    }
+  };
+
+  const handleBlur = () => {
+    // On blur, snap display back to the committed value
+    setInputStr(value.toFixed(step < 1 ? 1 : 0));
+  };
 
   return (
     <div className="vital-input flex flex-col gap-1 relative">
@@ -882,8 +1046,9 @@ function VitalInput({ label, value, history = [], min, max, step = 1, onChange }
           step={step}
           min={min}
           max={max}
-          value={value.toFixed(step < 1 ? 1 : 0)}
-          onChange={e => onChange(parseFloat(e.target.value) || 0)}
+          value={inputStr}
+          onChange={handleChange}
+          onBlur={handleBlur}
           className="w-full bg-[#fafafa] border border-brand-border rounded p-2 pr-12 text-[13px] outline-none hover:bg-white focus:bg-white focus:border-brand-primary font-mono transition-all"
         />
         
@@ -1064,41 +1229,155 @@ function Sparkline({ data, width, height, color }: { data: number[], width: numb
   return <svg ref={svgRef} width={width} height={height} className="overflow-visible" />;
 }
 
-function LabRow({ label, value, performed, onValueChange, onToggle, type = 'number', options = [] }: {
-  label: string, value: number, performed: boolean, onValueChange: (v: number) => void, onToggle: (p: boolean) => void, type?: 'number' | 'select', options?: { l: string, v: number }[]
+function LabRow({
+  label, unit = '', refRange = '', refMin, refMax,
+  value, performed, min = 0, max = 9999, step = 0.1,
+  onValueChange, onToggle,
+  type = 'number', options = []
+}: {
+  label: string;
+  unit?: string;
+  refRange?: string;
+  refMin?: number;
+  refMax?: number;
+  value: number;
+  performed: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  onValueChange: (v: number) => void;
+  onToggle: (p: boolean) => void;
+  type?: 'number' | 'select';
+  options?: { l: string; v: number }[];
 }) {
-  return (
-    <div className={`grid grid-cols-[1fr_80px_40px] items-center gap-2 group transition-opacity ${!performed && 'opacity-60'}`}>
-      <label className="text-[11px] font-medium text-brand-text truncate">{label}</label>
-      
-      {type === 'select' ? (
-        <select 
-          disabled={!performed}
-          value={value}
-          onChange={e => onValueChange(parseInt(e.target.value))}
-          className="bg-[#fafafa] border border-brand-border rounded px-1.5 py-1 text-[12px] outline-none disabled:bg-slate-100/50"
-        >
-          {options.map(opt => <option key={opt.v} value={opt.v}>{opt.l}</option>)}
-        </select>
-      ) : (
-        <input 
-          disabled={!performed}
-          type="number" 
-          step="0.1"
-          value={performed ? value.toFixed(1) : -9.9}
-          onChange={e => onValueChange(parseFloat(e.target.value) || 0)}
-          className={`bg-[#fafafa] border border-brand-border rounded px-1.5 py-1 text-[12px] font-mono outline-none disabled:bg-slate-100/50`}
-        />
-      )}
+  // Local string state: allows partial entry (e.g. "0.", "12.") without snapping
+  const [inputStr, setInputStr] = useState(String(value));
+  const [focused, setFocused] = useState(false);
 
-      <div className="flex justify-end">
-        <input 
-          type="checkbox" 
-          checked={performed} 
-          onChange={e => onToggle(e.target.checked)}
-          className="w-4 h-4 rounded border-brand-border text-brand-primary focus:ring-brand-primary/20 cursor-pointer" 
-        />
+  // Sync external value changes (e.g. reset) when not focused
+  useEffect(() => {
+    if (!focused) setInputStr(String(value));
+  }, [value, focused]);
+
+  const isAbnormal = performed && type === 'number' && refMin !== undefined && refMax !== undefined &&
+    (value < refMin || value > refMax);
+
+  // Severity: critical if > 2× upper or < 0.5× lower
+  const isCritical = performed && isAbnormal && refMax !== undefined && refMin !== undefined &&
+    (value > refMax * 2 || (refMin > 0 && value < refMin * 0.5));
+
+  const borderClass = !performed
+    ? 'border-brand-border'
+    : isCritical
+    ? 'border-red-400 ring-1 ring-red-200'
+    : isAbnormal
+    ? 'border-orange-400 ring-1 ring-orange-100'
+    : 'border-emerald-400';
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setInputStr(raw);
+    const parsed = parseFloat(raw);
+    if (!isNaN(parsed) && parsed >= min && parsed <= max) {
+      onValueChange(parsed);
+    }
+  };
+
+  const handleBlur = () => {
+    setFocused(false);
+    // Clamp and commit on blur
+    const parsed = parseFloat(inputStr);
+    if (isNaN(parsed)) {
+      setInputStr(String(value)); // revert to last good value
+    } else {
+      const clamped = Math.min(max, Math.max(min, parsed));
+      onValueChange(clamped);
+      setInputStr(String(clamped));
+    }
+  };
+
+  return (
+    <div className={`flex flex-col gap-1.5 transition-opacity ${!performed && 'opacity-55'}`}>
+      {/* Header row: label + unit + ref range + toggle */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-baseline gap-1 min-w-0">
+          <span className="text-[11px] font-bold text-brand-text truncate">{label}</span>
+          {unit && <span className="text-[9px] text-brand-muted font-bold shrink-0">{unit}</span>}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {refRange && (
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+              isCritical ? 'bg-red-50 text-red-500 border-red-200' :
+              isAbnormal ? 'bg-orange-50 text-orange-500 border-orange-200' :
+              'bg-slate-50 text-brand-muted border-brand-border'
+            }`}>
+              Ref: {refRange}
+            </span>
+          )}
+          {/* Styled toggle switch */}
+          <button
+            onClick={() => onToggle(!performed)}
+            className={`relative inline-flex w-9 h-5 rounded-full transition-colors focus:outline-none shrink-0 ${
+              performed ? 'bg-brand-primary' : 'bg-slate-200'
+            }`}
+            title={performed ? 'Mark as not performed' : 'Mark as performed'}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+              performed ? 'translate-x-4' : 'translate-x-0'
+            }`} />
+          </button>
+        </div>
       </div>
+
+      {/* Input row */}
+      {type === 'select' ? (
+        <div className="relative">
+          <select
+            disabled={!performed}
+            value={value}
+            onChange={e => onValueChange(parseInt(e.target.value))}
+            className={`w-full bg-[#fafafa] border rounded px-2.5 py-1.5 text-[12px] font-medium outline-none appearance-none cursor-pointer transition-all
+              disabled:bg-slate-50 disabled:text-brand-muted disabled:cursor-default
+              focus:bg-white ${borderClass}`}
+          >
+            {options.map(opt => <option key={opt.v} value={opt.v}>{opt.l}</option>)}
+          </select>
+          <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-brand-muted">
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+              <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      ) : (
+        <div className="relative">
+          <input
+            disabled={!performed}
+            type="number"
+            inputMode="decimal"
+            step={step}
+            min={min}
+            max={max}
+            value={focused ? inputStr : (performed ? value : '')}
+            placeholder={performed ? `${min}–${max}` : 'Not performed'}
+            onChange={handleChange}
+            onFocus={() => { setFocused(true); setInputStr(String(value)); }}
+            onBlur={handleBlur}
+            className={`w-full bg-[#fafafa] border rounded px-2.5 py-1.5 pr-16 text-[12px] font-mono outline-none transition-all
+              disabled:bg-slate-50 disabled:text-brand-muted disabled:cursor-default
+              focus:bg-white ${borderClass}`}
+          />
+          {/* Status chip inside input */}
+          {performed && (
+            <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[8px] font-bold px-1 py-0.5 rounded ${
+              isCritical ? 'bg-red-100 text-red-600' :
+              isAbnormal ? 'bg-orange-100 text-orange-600' :
+              'bg-emerald-100 text-emerald-700'
+            }`}>
+              {isCritical ? 'CRIT' : isAbnormal ? 'ABN' : 'NML'}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

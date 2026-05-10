@@ -10,8 +10,7 @@ current snapshot.  In simulation mode readings arrive every 5 s; in real
 clinical use they arrive every 15 min from the bedside monitor.
 
 We do NOT assume a fixed time-step.  Instead:
-  • If `intervalSeconds` is provided in the payload we find the reading that
-    was closest to 3 hours ago and use it as the baseline.
+  • If `intervalSeconds` is provided we find the reading closest to 3 h ago.
   • If `intervalSeconds` is absent we use history[0] (oldest in buffer) as
     the baseline — a safe conservative approximation.
 
@@ -38,8 +37,6 @@ LGBM_FEATURES = [
     "LabScenario_no_labs", "LabScenario_partial_cbc",
     "LabScenario_partial_full", "LabScenario_full",
 ]  # 36 features — frozen to match lgbm_stream1.txt training schema
-# NOTE: Oliguria is computed and stored in feat_dict for SHAP/logging
-# but NOT passed to LGBM (model was trained without it).
 
 XGB_EXTRA_FEATURES = [
     "Lactate", "PCT", "WBC", "Platelets", "Creatinine", "Bilirubin"
@@ -49,25 +46,23 @@ XGB_FEATURES = LGBM_FEATURES + XGB_EXTRA_FEATURES
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helper: derived / approximated features
+# Derived / approximated features
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _crt(hr: float, map_: float, shock_index: float) -> float:
     """
-    Capillary Refill Time (seconds).
-    Approximated from MAP + ShockIndex because CRT is not captured by the
-    current wearable sensor set.  Validated range from training data: [0.8, 3.2].
+    Capillary Refill Time (seconds) — approximated from MAP + ShockIndex.
+    Validated training range: [0.8, 3.2].
     """
     base    = 1.5
-    map_pen = max(0.0, (75.0 - map_) / 20.0)     # 0 at MAP≥75, rises below
-    si_pen  = max(0.0, (shock_index - 0.8) * 0.8) # 0 at SI≤0.8, rises above
+    map_pen = max(0.0, (75.0 - map_) / 20.0)
+    si_pen  = max(0.0, (shock_index - 0.8) * 0.8)
     return float(np.clip(base + map_pen + si_pen, 0.8, 3.2))
 
 
 def _hrv_sdnn(hr: float) -> float:
     """
     HRV SDNN (ms) approximated from heart rate.
-    In health ≈ 50 ms; drops linearly in sepsis as HR rises.
     Training range: [12, 80].
     """
     return float(np.clip(85.0 - (hr - 60.0) * 0.75, 12.0, 80.0))
@@ -75,29 +70,34 @@ def _hrv_sdnn(hr: float) -> float:
 
 def _lab_scenario(labs: dict[str, Any]) -> tuple[int, int, int, int]:
     """
-    Classify lab availability into 4 one-hot scenario flags.
-    Core clinical labs: lactate, pct, wbc, platelets, creatinine, bilirubin.
+    Classify lab availability into 4 mutually-exclusive one-hot flags.
+
+    BUG FIX: the original code had a coverage gap — when n=1 or n=2 but
+    cbc_available was False, both conditions were skipped and the final else
+    returned (0,0,0,1) = "full", which is clinically wrong.
+
+    Corrected tiers (consistent with training schema):
+      n == 0       → no_labs      (1,0,0,0)
+      1 <= n <= 2  → partial_cbc  (0,1,0,0)  — any small lab subset
+      3 <= n <= 4  → partial_full (0,0,1,0)
+      n >= 5       → full         (0,0,0,1)
     """
     core_keys = ["lactate", "pct", "wbc", "platelets", "creatinine", "bilirubin"]
-    performed = [labs[k]["performed"] for k in core_keys if k in labs]
-    n = sum(performed)
-
-    cbc_available = (labs.get("wbc", {}).get("performed", False) and
-                     labs.get("platelets", {}).get("performed", False))
+    n = sum(labs[k]["performed"] for k in core_keys if k in labs)
 
     if n == 0:
-        return (1, 0, 0, 0)       # no_labs
-    elif cbc_available and n <= 2:
-        return (0, 1, 0, 0)       # partial_cbc
-    elif 3 <= n <= 4:
-        return (0, 0, 1, 0)       # partial_full
+        return (1, 0, 0, 0)
+    elif n <= 2:
+        return (0, 1, 0, 0)
+    elif n <= 4:
+        return (0, 0, 1, 0)
     else:
-        return (0, 0, 0, 1)       # full
+        return (0, 0, 0, 1)
 
 
 def _impute_lab(lab: dict[str, Any], key: str) -> float:
-    """Return lab value if performed; else return clinical median imputation."""
-    MEDIANS = {
+    """Return lab value if performed; else return training-set median."""
+    MEDIANS: dict[str, float] = {
         "lactate":    1.5,
         "pct":        0.08,
         "wbc":        8.5,
@@ -116,34 +116,20 @@ def _impute_lab(lab: dict[str, Any], key: str) -> float:
 
 def _baseline_index(history_len: int, interval_sec: float) -> int:
     """
-    Return the index in the history array that is closest to 3 hours ago.
-
-    Parameters
-    ----------
-    history_len   : number of readings in the buffer (including current)
-    interval_sec  : seconds between consecutive readings
-                    (e.g. 900 = 15-min clinical cadence, 5 = simulation mode)
-
-    Returns index 0 … history_len-1.
-    index=0 means "use the oldest available reading".
+    Return the index in the history array closest to 3 hours ago.
+    Returns 0 (oldest) when interval is unknown or buffer is short.
     """
     if interval_sec <= 0 or history_len < 2:
         return 0
-
     THREE_HOURS_SEC = 3 * 3600
-    # How many steps back is ≈ 3 hours?
     steps_back = int(round(THREE_HOURS_SEC / interval_sec))
-    # Clamp to valid range — if buffer is shorter than 3 h, use oldest reading
     return max(0, history_len - 1 - min(steps_back, history_len - 1))
 
 
 def _vital_delta(current: float,
                  history: list[float],
                  interval_sec: float = 0.0) -> float:
-    """
-    Compute signed delta:  current − baseline.
-    Returns 0.0 if history is absent or has only one reading.
-    """
+    """Compute signed delta: current − baseline. Returns 0.0 with no history."""
     if not history or len(history) < 2:
         return 0.0
     idx = _baseline_index(len(history), interval_sec)
@@ -154,16 +140,25 @@ def _lab_delta(current_val: float,
                performed: bool,
                prev_labs: dict,
                key: str) -> float:
-    """
-    Compute delta between current lab value and a previous draw.
-    Returns 0.0 if either draw is missing / not performed.
-    """
+    """Delta between current and previous lab draw. Returns 0.0 if either missing."""
     if not performed:
         return 0.0
     prev = prev_labs.get(key, {})
     if not prev.get("performed", False):
         return 0.0
     return float(current_val - float(prev.get("value", current_val)))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NaN guard — fallback medians for any feature that arrives as NaN
+# ─────────────────────────────────────────────────────────────────────────────
+
+_NAN_FALLBACKS: dict[str, float] = {
+    "HR": 85.0, "HRV_SDNN": 50.0, "SpO2": 98.0, "Temp": 37.0,
+    "MAP": 85.0, "RespRate": 18.0, "CRT": 1.5, "ShockIndex": 0.7,
+    "Age": 45.0, "BMI": 24.5, "Lactate": 1.5, "PCT": 0.08,
+    "WBC": 8.5, "Platelets": 230.0, "Creatinine": 0.95, "Bilirubin": 0.6,
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -182,10 +177,9 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
     labs = payload["labs"]
     d    = payload["demographics"]
 
-    # Optional: history arrays & sampling interval
-    hist  = payload.get("vitalsHistory", {})   # dict of key → [float, …]
-    ivl   = float(payload.get("intervalSeconds", 0.0))
-    prev_labs = payload.get("previousLabs", {}) # previous lab draw snapshot
+    hist      = payload.get("vitalsHistory", {})
+    ivl       = float(payload.get("intervalSeconds", 0.0))
+    prev_labs = payload.get("previousLabs", {})
 
     # ── Vitals ───────────────────────────────────────────────────────────────
     hr          = float(v["hr"])
@@ -197,26 +191,24 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
     gcs         = float(v.get("gcs", 15.0))
     urine_out   = float(v.get("urineOutput", 0.8))
 
-    # Oliguria: urine output < 0.5 mL/kg/h is a Sepsis-3 organ dysfunction criterion
+    # Oliguria: <0.5 mL/kg/h = Sepsis-3 organ dysfunction
     oliguria    = int(urine_out < 0.5)
 
     shock_index = hr / max(systolic_bp, 1.0)
     crt         = _crt(hr, map_, shock_index)
     hrv_sdnn    = _hrv_sdnn(hr)
 
-    # qSOFA (0-3): RR ≥22, altered mentation (GCS<15), SBP ≤100
+    # qSOFA (0–3): RR ≥22 | GCS <15 | SBP ≤100
+    # SBP threshold is ≤100 per Seymour et al. 2016 (NOT <90 septic-shock threshold)
     qsofa = int(resp >= 22) + int(gcs < 15) + int(systolic_bp <= 100)
 
-    # ── Dynamic 3-hour vitals deltas ─────────────────────────────────────────
-    # If the frontend sends history arrays, we compute the true delta.
-    # Otherwise these are 0.0 (single-snapshot fallback — safe for first reading).
+    # ── 3-hour vitals deltas ──────────────────────────────────────────────────
     delta_hr   = _vital_delta(hr,   hist.get("hr",   []), ivl)
     delta_map  = _vital_delta(map_, hist.get("map",  []), ivl)
     delta_resp = _vital_delta(resp, hist.get("resp", []), ivl)
     delta_temp = _vital_delta(temp, hist.get("temp", []), ivl)
 
     # ── Lab deltas ────────────────────────────────────────────────────────────
-    # Computed when a previous lab draw is present (nurse records repeat labs).
     delta_lactate    = _lab_delta(
         _impute_lab(labs.get("lactate",    {}), "lactate"),
         labs.get("lactate", {}).get("performed", False),
@@ -238,26 +230,25 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
         prev_labs, "platelets",
     )
 
-    # ── Tropical / point-of-care labs ────────────────────────────────────────
+    # ── Tropical / POC labs ──────────────────────────────────────────────────
     dengue_ns1  = float(labs.get("dengueNS1",  {}).get("value", 0))
     malaria_rdt = float(labs.get("malariaRDT", {}).get("value", 0))
 
     # ── Demographics ─────────────────────────────────────────────────────────
     age              = float(d["age"])
     bmi              = float(d["bmi"])
-    diabetes         = int(d.get("diabetes", False))
-    ckd              = int(d.get("ckd", False))
+    diabetes         = int(d.get("diabetes",         False))
+    ckd              = int(d.get("ckd",              False))
     cirrhosis        = int(d.get("cirrhosis",         False))
     malignancy       = int(d.get("malignancy",         False))
     immunosuppressed = int(d.get("immunosuppression",  False))
-    prior_abx        = int(d.get("priorAntibiotics", False))
-    referred         = int(d.get("referredFromOutside", False))
-    amr              = int(d.get("gramNegativeRisk", False))
+    prior_abx        = int(d.get("priorAntibiotics",  False))
+    referred         = int(d.get("referredFromOutside",False))
+    amr              = int(d.get("gramNegativeRisk",   False))
     gender_m         = int(d.get("gender", "Male") == "Male")
 
-    # ── Epidemiological context ───────────────────────────────────────────────
-    malaria_endemic = int(d.get("malariaEndemic", False))
-    dengue_endemic  = int(d.get("dengueEndemic",  False))
+    malaria_endemic  = int(d.get("malariaEndemic", False))
+    dengue_endemic   = int(d.get("dengueEndemic",  False))
 
     # ── Lab scenario flags ────────────────────────────────────────────────────
     no_labs, partial_cbc, partial_full, full_labs = _lab_scenario(labs)
@@ -271,15 +262,13 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
     bilirubin  = _impute_lab(labs.get("bilirubin",  {"performed": False}), "bilirubin")
 
     # ── Assemble feat_dict ────────────────────────────────────────────────────
-    feat_dict = {
-        # Core vitals
+    feat_dict: dict[str, Any] = {
         "HR": hr, "HRV_SDNN": hrv_sdnn, "SpO2": spo2,
         "Temp": temp, "MAP": map_, "RespRate": resp,
         "CRT": crt, "ShockIndex": shock_index,
         "MotionArtifact": 0, "SensorDetached": 0,
         "qSOFA": qsofa,
 
-        # Dynamic 3-hour deltas (0.0 until history is available)
         "Delta_3h_HR":        delta_hr,
         "Delta_3h_MAP":       delta_map,
         "Delta_3h_RespRate":  delta_resp,
@@ -289,10 +278,8 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
         "Delta_3h_WBC":       delta_wbc,
         "Delta_3h_Platelets": delta_platelets,
 
-        # Tropical POC tests
         "Dengue_NS1": dengue_ns1, "Malaria_RDT": malaria_rdt,
 
-        # Demographics & comorbidities
         "Age": age, "BMI": bmi,
         "Diabetes": diabetes, "CKD": ckd,
         "Cirrhosis": cirrhosis, "Malignancy": malignancy,
@@ -301,26 +288,30 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
         "Referred_Outside": referred, "AMR_Resistance": amr,
         "Gender_M": gender_m,
 
-        # Lab scenario one-hot
         "LabScenario_no_labs":      no_labs,
         "LabScenario_partial_cbc":  partial_cbc,
         "LabScenario_partial_full": partial_full,
         "LabScenario_full":         full_labs,
 
-        # Raw lab values (XGB extras)
         "Lactate": lactate, "PCT": pct, "WBC": wbc,
         "Platelets": platelets, "Creatinine": creatinine, "Bilirubin": bilirubin,
 
-        # Non-LGBM features stored for SHAP/logging/clinical-boost
+        # Non-model features: stored for SHAP drivers / clinical-boost rules
         "Oliguria":       oliguria,
         "UrineOutput":    urine_out,
         "MalariaEndemic": malaria_endemic,
         "DengueEndemic":  dengue_endemic,
 
-        # Delta metadata — lets the UI show confidence in delta values
+        # Delta metadata for UI confidence display
         "DeltaSourceReadings": len(hist.get("hr", [])),
         "DeltaIntervalSec":    ivl,
     }
+
+    # NaN guard — replace any NaN with safe fallback so inference always completes
+    for feat in XGB_FEATURES:
+        val = feat_dict.get(feat)
+        if isinstance(val, float) and np.isnan(val):
+            feat_dict[feat] = _NAN_FALLBACKS.get(feat, 0.0)
 
     lgbm_vec = np.array([feat_dict[f] for f in LGBM_FEATURES], dtype=np.float64)
     xgb_vec  = np.array([feat_dict[f] for f in XGB_FEATURES],  dtype=np.float64)
@@ -335,8 +326,8 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
 def top_shap_drivers(feat_dict: dict, prob: float) -> list[dict]:
     """
     Lightweight rule-based SHAP surrogate.
-    Weights derived from SHAP summary plot — global importance scaled
-    to local context.  Deltas are now live so they contribute dynamically.
+    Weights derived from SHAP summary plot — global importance scaled to
+    local context.  Deltas contribute dynamically when non-zero.
     """
     WEIGHTS: dict[str, Any] = {
         "CRT":                   lambda v, p: (v - 2.0) * 0.9 * p,
@@ -344,12 +335,11 @@ def top_shap_drivers(feat_dict: dict, prob: float) -> list[dict]:
         "AMR_Resistance":        lambda v, p:  v * 0.6 * p,
         "Temp":                  lambda v, p: abs(v - 37.0) * 0.3 * p,
         "qSOFA":                 lambda v, p:  v * 0.25 * p,
-        # Dynamic deltas now contribute when non-zero
         "Delta_3h_WBC":          lambda v, p:  v * 0.18 * p,
         "Delta_3h_Creatinine":   lambda v, p:  v * 0.14 * p,
         "Delta_3h_HR":           lambda v, p:  v * 0.10 * p,
         "Delta_3h_Lactate":      lambda v, p:  v * 0.12 * p,
-        "Delta_3h_Platelets":    lambda v, p: -v * 0.10 * p,  # falling platelets = risk
+        "Delta_3h_Platelets":    lambda v, p: -v * 0.10 * p,
         "Delta_3h_RespRate":     lambda v, p:  v * 0.08 * p,
         "HRV_SDNN":              lambda v, p: (50 - v) * 0.02 * p,
         "RespRate":              lambda v, p: max(0, v - 20) * 0.08 * p,
@@ -363,12 +353,12 @@ def top_shap_drivers(feat_dict: dict, prob: float) -> list[dict]:
     scores = []
     for feat, fn in WEIGHTS.items():
         val = feat_dict.get(feat, 0.0)
-        influence = fn(val, prob)
+        influence = fn(float(val), float(prob))
         if abs(influence) > 0.001:
             scores.append({
                 "feature": feat,
-                "value":   round(val, 3),
-                "shap":    round(influence, 4),
+                "value":   round(float(val), 3),
+                "shap":    round(float(influence), 4),
             })
 
     scores.sort(key=lambda x: abs(x["shap"]), reverse=True)

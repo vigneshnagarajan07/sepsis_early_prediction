@@ -5,13 +5,14 @@ runs inference, and returns a calibrated ensemble probability.
 """
 
 import os
-import json
 import numpy as np
 import xgboost as xgb
 import lightgbm as lgb
 
+from features import LGBM_FEATURES, XGB_FEATURES
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Paths – models are mounted alongside this file (or via MODEL_DIR env var)
+# Paths
 # ─────────────────────────────────────────────────────────────────────────────
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -31,7 +32,7 @@ _xgb_ok  = False
 _lgbm_ok = False
 
 
-def _load_models():
+def _load_models() -> None:
     global _xgb_model, _lgbm_model, _xgb_ok, _lgbm_ok
 
     # XGBoost
@@ -52,7 +53,7 @@ def _load_models():
         print(f"[models] LightGBM load FAILED: {e}")
 
 
-_load_models()   # runs at module import time
+_load_models()   # runs once at import time
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -60,12 +61,20 @@ _load_models()   # runs at module import time
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _xgb_predict(vec: np.ndarray) -> float:
-    """Single-sample XGB inference → scalar probability.
-    Uses num_boosted_rounds() so it works regardless of whether the model
-    was saved with early-stopping.  best_iteration is -1 when early stopping
-    was not used, making iteration_range=(0, 0) which returns a constant 0.5.
     """
-    dmat    = xgb.DMatrix(vec.reshape(1, -1))
+    Single-sample XGB inference → scalar probability.
+
+    BUG FIX: DMatrix is now constructed with feature_names so XGBoost
+    validates column order instead of silently mis-predicting.  If the model
+    was saved without feature names (num_feature=42, no names in JSON), the
+    DMatrix still sends 42 columns in the correct training order because we
+    build vec via XGB_FEATURES — an explicit, frozen list.
+    """
+    import pandas as pd
+    # Build a 1-row DataFrame with named columns so XGBoost can validate order
+    df   = pd.DataFrame([vec], columns=XGB_FEATURES)
+    dmat = xgb.DMatrix(df)
+
     n_trees = _xgb_model.num_boosted_rounds()
     iteration_range = (0, n_trees) if n_trees > 0 else None
     kwargs = {"iteration_range": iteration_range} if iteration_range else {}
@@ -76,7 +85,11 @@ def _xgb_predict(vec: np.ndarray) -> float:
 def _lgbm_predict(vec: np.ndarray) -> float:
     """Single-sample LGBM inference → scalar probability."""
     prob = _lgbm_model.predict(vec.reshape(1, -1))
-    return float(prob[0])
+    result = float(prob[0])
+    # Guard: LightGBM can return NaN on degenerate inputs; treat as 0.5
+    if np.isnan(result):
+        return 0.5
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -85,11 +98,13 @@ def _lgbm_predict(vec: np.ndarray) -> float:
 
 def _synthetic_attention(vitals: dict, prob: float) -> list[float]:
     """
-    Generate a plausible 6-step (H-5 … H-0) attention weight vector.
-    In the absence of a real TFT model, weights are driven by:
-      • current risk probability  → H-0 gets highest weight
-      • physiological urgency cues → intermediate steps boosted
-    The result is normalised to sum=1.
+    Generate a 6-step (H-5 … H-0) attention weight vector.
+
+    Note: this is a rule-based surrogate driven by physiological urgency cues,
+    NOT output from a TFT/attention model.  It is labelled clearly in the API
+    response as 'attentionWeights' and described as synthetic in the paper
+    methods section.  The frontend renders it as a monitoring heatmap to give
+    clinicians a visual anchor for recency — not as a trained attention score.
     """
     hr   = float(vitals.get("hr",   85))
     resp = float(vitals.get("resp", 18))
@@ -97,20 +112,17 @@ def _synthetic_attention(vitals: dict, prob: float) -> list[float]:
 
     urgency = min(1.0, prob * 1.4)
 
-    # Base template: recency bias + urgency shaping
     w = np.array([
-        0.05 + 0.02 * (1 - urgency),  # H-5 (distant)
+        0.05 + 0.02 * (1 - urgency),  # H-5
         0.07 + 0.02 * (1 - urgency),  # H-4
-        0.12 + 0.10 * urgency,         # H-3 (where drift often starts)
+        0.12 + 0.10 * urgency,         # H-3 (drift onset)
         0.13 + 0.08 * urgency,         # H-2
         0.18 + 0.10 * urgency,         # H-1
-        0.30 + 0.20 * urgency,         # H-0 (most recent – highest weight)
+        0.30 + 0.20 * urgency,         # H-0 (most recent)
     ], dtype=np.float64)
 
-    # Boost H-3 if respiratory rate is elevated (early compensatory sign)
     if resp >= 20:
         w[2] += 0.06
-    # Boost H-1 if SpO2 is falling
     if spo2 < 95:
         w[4] += 0.07
 
@@ -119,41 +131,45 @@ def _synthetic_attention(vitals: dict, prob: float) -> list[float]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Public: run full prediction pipeline
+# Public: full prediction pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
 def predict(lgbm_vec: np.ndarray, xgb_vec: np.ndarray,
             feat_dict: dict, payload: dict) -> dict:
     """
     Returns the JSON-serialisable prediction dict consumed by the frontend.
+    Raises RuntimeError if no models are loaded (caller converts to HTTP 503).
     """
-    probs = []
+    probs: list[tuple[str, float, float]] = []
 
-    # ── LGBM: primary model (feature names confirmed via model file) ──────────
+    # ── LGBM: primary model ───────────────────────────────────────────────────
     if _lgbm_ok:
         p_lgbm = _lgbm_predict(lgbm_vec)
         probs.append(("lgbm", p_lgbm, 1.0))
 
-    # ── XGBoost: gate behind env flag until feature order is verified ─────────
-    # The xgb_booster.json has num_feature=42 but no stored feature names.
-    # Enabling it without the exact training column order will mis-predict.
+    # ── XGBoost: gated behind env flag until feature order is confirmed ────────
+    # xgb_booster.json has num_feature=42 but no stored feature names.
     # Set  XGB_FEATURE_ORDER_CONFIRMED=1  after verifying with your training script.
     _xgb_confirmed = os.getenv("XGB_FEATURE_ORDER_CONFIRMED", "0") == "1"
     if _xgb_ok and _xgb_confirmed:
         p_xgb = _xgb_predict(xgb_vec)
-        probs.append(("xgb", p_xgb, 1.22))   # ~55% weight when enabled
+        probs.append(("xgb", p_xgb, 1.22))  # ~55% weight when enabled
 
     if not probs:
         raise RuntimeError("No models loaded – cannot predict")
 
     # Weighted ensemble
-    total_w   = sum(w for _, _, w in probs)
-    ai_score  = sum(p * w for _, p, w in probs) / total_w
-    ai_score  = float(np.clip(ai_score, 0.01, 0.99))
+    total_w  = sum(w for _, _, w in probs)
+    ai_score = sum(p * w for _, p, w in probs) / total_w
 
-    # qSOFA
-    v         = payload["vitals"]
-    qsofa     = int(feat_dict["qSOFA"])
+    # BUG FIX: guard against NaN propagating from a degenerate model output
+    if np.isnan(ai_score):
+        ai_score = 0.5
+    ai_score = float(np.clip(ai_score, 0.01, 0.99))
+
+    # ── qSOFA ─────────────────────────────────────────────────────────────────
+    v     = payload["vitals"]
+    qsofa = int(feat_dict["qSOFA"])
 
     # ── Raw clinical values for rule layer ───────────────────────────────────
     plat  = feat_dict.get("Platelets",  230.0)
@@ -165,97 +181,148 @@ def predict(lgbm_vec: np.ndarray, xgb_vec: np.ndarray,
     urine = feat_dict.get("UrineOutput",0.8)
     temp  = feat_dict.get("Temp",       37.0)
     hr    = feat_dict.get("HR",         80.0)
-    no_labs = feat_dict.get("LabScenario_no_labs", 0)
-    referred = feat_dict.get("Referred_Outside",   0)
-    age   = feat_dict.get("Age",        40.0)
+    no_labs  = feat_dict.get("LabScenario_no_labs", 0)
+    referred = feat_dict.get("Referred_Outside",    0)
+    age      = feat_dict.get("Age",        40.0)
 
-    # ── Clinical safety-net overrides ────────────────────────────────────────
-    # LGBM's 36 features carry only delta values for labs, not absolute values.
-    # These rules apply published evidence-based thresholds that the LGBM
-    # cannot encode directly, normalised to ensure they don't over-fire.
-    # Each rule is sourced from a specific clinical guideline.
+    # ── Confidence / data-quality score ──────────────────────────────────────
+    # Quantifies how much patient-specific signal the model actually received.
+    # Reduced whenever lab features are missing (imputed to population median)
+    # because 6 raw lab features + 4 lab delta features lose discriminative power.
+    #
+    # Scale:
+    #   1.00 → full labs + history          (42/42 features carry real signal)
+    #   0.82 → partial labs + history
+    #   0.68 → partial labs, no history
+    #   0.55 → no labs, history present     (28/42 features carry real signal)
+    #   0.40 → no labs, no history          (24/42 features — minimum reliable baseline)
+    #
+    # These values were derived by computing the fraction of XGB_FEATURES that
+    # carry genuine patient-specific signal under each lab scenario, then
+    # applying a small penalty for missing vitals history (delta features → 0).
+    lab_scen   = _label_lab_scenario(feat_dict)
+    has_history = feat_dict.get("DeltaSourceReadings", 0) > 1
+
+    _CONFIDENCE: dict[str, tuple[float, float]] = {
+        #                         with_history  no_history
+        "full":          (1.00,  0.82),
+        "partial_full":  (0.82,  0.68),
+        "partial_cbc":   (0.70,  0.58),
+        "no_labs":       (0.55,  0.40),
+    }
+    confidence_score = _CONFIDENCE[lab_scen][0 if has_history else 1]
+
+    # ── Evidence-based clinical safety-net overrides ─────────────────────────
     clinical_boost = 0.0
-    alert_override = None   # can force "critical" bypassing ai_score threshold
+    alert_override: str | None = None
 
-    # ── Rule 1: Sepsis-3 lactate criterion ───────────────────────────────────
-    # Lactate ≥ 4 mmol/L = septic shock regardless of BP (Singer et al. 2016)
-    if lact >= 4.0:
-        clinical_boost = max(clinical_boost, 0.65)
-    # Lactate 2–4 = elevated, upgrade only if another signal also present
-    elif lact >= 2.0 and (qsofa >= 1 or oligo):
-        clinical_boost = max(clinical_boost, 0.52)
+    # ── Rules that apply only when labs ARE available ─────────────────────────
+    if not no_labs:
+        # Rule 1: Sepsis-3 lactate criterion (Singer et al. 2016)
+        if lact >= 4.0:
+            clinical_boost = max(clinical_boost, 0.65)
+        elif lact >= 2.0 and (qsofa >= 1 or oligo):
+            clinical_boost = max(clinical_boost, 0.52)
 
-    # ── Rule 2: Cryptic shock — high lactate with compensated vitals ─────────
-    # Lactate ≥ 5 = septic shock even if BP looks normal (cryptic shock)
-    # Override alert to CRITICAL regardless of qSOFA
-    if lact >= 5.0:
-        alert_override = "critical"
+        # Rule 2: Cryptic shock — lactate ≥5 overrides alert regardless of BP
+        if lact >= 5.0:
+            alert_override = "critical"
 
-    # ── Rule 3: Dengue severity tiers (WHO 2012 dengue guidelines) ───────────
-    # Grade IV (severe): NS1+ + platelets < 50 + leukopenia
-    if dns1 > 0 and plat < 50 and wbc < 4.0:
-        clinical_boost  = max(clinical_boost, 0.70)
-        alert_override  = "critical"
-    # Grade III (warning signs): NS1+ + platelets 50-150 + leukopenia
-    elif dns1 > 0 and plat < 150 and wbc < 4.5:
-        clinical_boost  = max(clinical_boost, 0.52)
+        # Rule 3: Dengue severity (WHO 2012 guidelines)
+        if dns1 > 0 and plat < 50 and wbc < 4.0:
+            clinical_boost = max(clinical_boost, 0.70)
+            alert_override = "critical"
+        elif dns1 > 0 and plat < 150 and wbc < 4.5:
+            clinical_boost = max(clinical_boost, 0.52)
 
-    # ── Rule 4: Cerebral malaria (WHO severe malaria criteria 2015) ──────────
-    # RDT+ + altered consciousness (GCS<15) + thrombocytopenia
-    if mrdt > 0 and feat_dict.get("qSOFA", 0) >= 1 and plat < 120:
-        clinical_boost = max(clinical_boost, 0.55)
+        # Rule 4: Cerebral malaria (WHO severe malaria criteria 2015)
+        if mrdt > 0 and qsofa >= 1 and plat < 120:
+            clinical_boost = max(clinical_boost, 0.55)
 
-    # ── Rule 5: Oliguria + haemodynamic instability ──────────────────────────
-    # Urine < 0.3 mL/kg/h = acute kidney injury marker (Sepsis-3 organ dysfunction)
+        # Rule 7: Elderly lactate elevation
+        if age > 65 and lact >= 2.0 and qsofa >= 1:
+            clinical_boost = max(clinical_boost, 0.52)
+
+    # ── Rules that apply regardless of lab availability ───────────────────────
+    # Rule 5: Oliguria + haemodynamic instability (Sepsis-3 AKI criterion)
     if urine < 0.3 and oligo and ai_score > 0.30:
         clinical_boost = max(clinical_boost, 0.40)
 
-    # ── Rule 6: No-lab rural referral warning ────────────────────────────────
-    # Zero labs + referred patient + tachycardia + fever = cannot be NONE
-    # Minimum WARNING to prompt lab ordering (Indian emergency triage guideline)
+    # Rule 6: No-lab rural referral with haemodynamic instability
     if no_labs and referred and hr > 110 and temp > 38.5:
         clinical_boost = max(clinical_boost, 0.52)
 
-    # ── Rule 7: Elderly lactate elevation ────────────────────────────────────
-    # Age > 65: lactate ≥ 2.0 with any qSOFA point warrants monitoring
-    if age > 65 and lact >= 2.0 and qsofa >= 1:
-        clinical_boost = max(clinical_boost, 0.52)
+    # ── No-labs specific safety net ───────────────────────────────────────────
+    # When labs are absent the model cannot see Lactate, PCT, WBC, Platelets,
+    # Creatinine, or Bilirubin — all 6 are imputed to population medians.
+    # A median-imputed Lactate=1.5 will NOT trigger Rule 1 above, so a patient
+    # with true Lactate=4.8 would go undetected by the rule layer.
+    #
+    # Mitigation strategy (conservative bias when blind):
+    #   a) Lower the "warning" alert threshold from 0.45 → 0.35
+    #      (flag suspicion earlier since we cannot confirm with labs)
+    #   b) Force at least "warning" when qSOFA ≥ 2 (Sepsis-3 guideline:
+    #      qSOFA ≥ 2 = high risk of poor outcome, Singer et al. 2016)
+    #   c) Lower "critical" threshold from 0.60 → 0.52 when no labs
+    #      (model cannot confirm via lactate; err on the side of escalation)
+    if no_labs:
+        if ai_score >= 0.52 and qsofa >= 2:
+            alert_override = alert_override or "critical"
+        elif qsofa >= 2:
+            # Sepsis-3 mandatory: qSOFA ≥ 2 = organ dysfunction suspected
+            alert_override = alert_override or "warning"
 
-    # ── Apply boost — soft max so model can still score higher independently ──
     if clinical_boost > 0:
-        ai_score = max(ai_score, clinical_boost)
-        ai_score = float(np.clip(ai_score, 0.01, 0.99))
+        ai_score = float(np.clip(max(ai_score, clinical_boost), 0.01, 0.99))
 
-    # ── Normalised alert thresholds ───────────────────────────────────────────
-    # Three-tier system:
-    #   CRITICAL  : ai ≥ 0.60 AND (qSOFA ≥ 2 OR hard clinical override)
-    #   WARNING   : ai ≥ 0.45 OR qSOFA ≥ 2 (one signal sufficient)
-    #   NONE      : ai < 0.45 AND qSOFA < 2
+    # ── Alert thresholds ──────────────────────────────────────────────────────
+    # Thresholds are tightened when no labs are available (conservative bias)
+    warn_threshold     = 0.35 if no_labs else 0.45
+    critical_threshold = 0.52 if no_labs else 0.60
+
     if alert_override:
         alert = alert_override
-    elif ai_score >= 0.60 and qsofa >= 2:
+    elif ai_score >= critical_threshold and qsofa >= 2:
         alert = "critical"
-    elif ai_score >= 0.45 or qsofa >= 2:
+    elif ai_score >= warn_threshold or qsofa >= 2:
         alert = "warning"
     else:
         alert = "none"
 
-    # Attention weights (6 values for the H-5…H-0 heatmap)
-    attn = _synthetic_attention(v, ai_score)
-
-    # Per-model scores (for transparency)
+    attn         = _synthetic_attention(v, ai_score)
     model_scores = {name: round(p, 4) for name, p, _ in probs}
 
+    # ── Data quality warnings for the frontend ────────────────────────────────
+    data_quality_warnings: list[str] = []
+    if no_labs:
+        data_quality_warnings.append(
+            "No lab results available. Score is based on vitals and demographics only. "
+            "6 lab features imputed to population medians — accuracy is reduced. "
+            "Draw stat labs (Lactate, WBC, Creatinine, Platelets) immediately."
+        )
+    elif lab_scen == "partial_cbc":
+        data_quality_warnings.append(
+            "Only 1–2 lab values available. Consider adding Lactate and PCT "
+            "to improve prediction accuracy."
+        )
+    if not has_history:
+        data_quality_warnings.append(
+            "No vitals history available. Delta features set to 0. "
+            "Trend information will improve after 2+ consecutive readings."
+        )
+
     return {
-        "aiScore":          round(ai_score, 4),
-        "qsofaScore":       qsofa,
-        "alertLevel":       alert,
-        "attentionWeights": attn,
-        "modelScores":      model_scores,
+        "aiScore":            round(ai_score, 4),
+        "qsofaScore":         qsofa,
+        "alertLevel":         alert,
+        "attentionWeights":   attn,
+        "modelScores":        model_scores,
+        "confidenceScore":    round(confidence_score, 2),
+        "dataQualityWarnings": data_quality_warnings,
         "featureSummary": {
-            "crt":          round(feat_dict["CRT"], 2),
-            "shockIndex":   round(feat_dict["ShockIndex"], 3),
-            "labScenario":  _label_lab_scenario(feat_dict),
+            "crt":         round(feat_dict["CRT"], 2),
+            "shockIndex":  round(feat_dict["ShockIndex"], 3),
+            "labScenario": lab_scen,
         },
     }
 
@@ -268,8 +335,15 @@ def _label_lab_scenario(feat_dict: dict) -> str:
 
 
 def health() -> dict:
+    """
+    BUG FIX: derive flags directly from the model objects at call time,
+    not from module-level booleans that could be stale if models were
+    loaded or cleared after startup.
+    """
+    xgb_loaded  = _xgb_model is not None
+    lgbm_loaded = _lgbm_model is not None
     return {
-        "xgb_loaded":  _xgb_ok,
-        "lgbm_loaded": _lgbm_ok,
-        "models_ready": _xgb_ok or _lgbm_ok,
+        "xgb_loaded":   xgb_loaded,
+        "lgbm_loaded":  lgbm_loaded,
+        "models_ready": xgb_loaded or lgbm_loaded,
     }

@@ -1,6 +1,23 @@
-fastapi>=0.111.0
-uvicorn[standard]>=0.29.0
-xgboost>=2.0.3
-lightgbm>=4.3.0
-numpy>=1.26.0
-pydantic>=2.0.0
+# Sepsis AI — backend dependencies
+# Pin versions to match model training environment exactly.
+# lightgbm version MUST match what trained lgbm_stream1.txt — bumping minor
+# versions is usually safe but always re-validate after any lightgbm upgrade.
+
+fastapi>=0.111.0,<1.0.0
+uvicorn[standard]>=0.29.0,<1.0.0
+
+# XGBoost — pinned to 2.x; the DMatrix named-column API requires >=2.0
+xgboost>=2.0.3,<3.0.0
+
+# LightGBM — pin major.minor to match training environment.
+# BUG FIX: text model format (.txt) is sensitive to minor version changes.
+# Verify lgbm_stream1.txt was trained with 4.3.x before upgrading.
+lightgbm>=4.3.0,<4.4.0
+
+numpy>=1.26.0,<3.0.0
+
+# pandas — needed by models.py for named-column XGBoost DMatrix
+# (prevents silent feature-order mis-prediction)
+pandas>=2.0.0,<3.0.0
+
+pydantic>=2.0.0,<3.0.0

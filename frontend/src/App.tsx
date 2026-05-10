@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { 
   Activity, 
   ChevronRight,
@@ -125,6 +125,10 @@ export default function SepsisDashboard() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  // BUG FIX: track in-flight requests to prevent concurrent stacking during simulation
+  const analysisInFlight = useRef(false);
+  // BUG FIX: surface API errors to the clinician instead of only console.error
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'live' | 'historical'>('live');
   const [timeRange, setTimeRange] = useState<'6h' | '12h' | '24h'>('6h');
   const [lastUpdate, setLastUpdate] = useState(new Date());
@@ -136,6 +140,8 @@ export default function SepsisDashboard() {
     modelScores: Record<string, number>;
     featureSummary: { crt: number; shockIndex: number; labScenario: string };
     shapDrivers: Array<{ feature: string; value: number; shap: number }>;
+    confidenceScore: number;
+    dataQualityWarnings: string[];
     deltaInfo?: {
       sourceReadings: number; intervalSec: number;
       deltaHR: number; deltaMAP: number; deltaResp: number; deltaTemp: number;
@@ -150,11 +156,14 @@ export default function SepsisDashboard() {
 
   // qSOFA is computed server-side with full clinical logic; no local duplicate needed.
 
-  const runAnalysis = async () => {
+  const runAnalysis = useCallback(async () => {
+    // BUG FIX: skip if a request is already in flight (prevents concurrent stacking in sim mode)
+    if (analysisInFlight.current) return;
+    analysisInFlight.current = true;
     setIsAnalyzing(true);
     setResult(null);
+    setAnalysisError(null);
 
-    // Snapshot current labs as "previous" for the NEXT call's delta computation
     const labsSnapshot = labs;
 
     try {
@@ -165,35 +174,40 @@ export default function SepsisDashboard() {
           vitals,
           labs,
           demographics,
-          // Dynamic 3h delta fields
           vitalsHistory,
           previousLabs: previousLabs ?? undefined,
-          // Simulation = 5s cadence; manual single-snapshot = 0 (backend uses oldest buffer entry)
           intervalSeconds: isSimulating ? 5 : 0,
         })
       });
 
       if (!response.ok) {
-        let errorMsg = `Prediction failed (${response.status})`;
+        let errorMsg = `Prediction failed (HTTP ${response.status})`;
         try {
           const errorJson = await response.json();
-          errorMsg += `: ${JSON.stringify(errorJson)}`;
+          // FastAPI error detail is in errorJson.detail
+          const detail = errorJson?.detail ?? JSON.stringify(errorJson);
+          errorMsg += `: ${detail}`;
         } catch {
           const errorText = await response.text();
-          errorMsg += `: ${errorText.substring(0, 100)}`;
+          errorMsg += `: ${errorText.substring(0, 200)}`;
         }
         throw new Error(errorMsg);
       }
+
       const analysis = await response.json();
       setResult(analysis);
-      // Store current labs for delta computation on next call
       setPreviousLabs(labsSnapshot);
     } catch (error) {
-      console.error("Inference Error:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Inference Error:", msg);
+      // BUG FIX: show error to clinician in the UI, not just the console
+      setAnalysisError(msg);
     } finally {
       setIsAnalyzing(false);
+      analysisInFlight.current = false;
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vitals, labs, demographics, vitalsHistory, previousLabs, isSimulating]);
 
   // Helper for lab inputs
   const updateLab = (key: keyof Labs, field: 'value' | 'performed', val: any) => {
@@ -212,7 +226,7 @@ export default function SepsisDashboard() {
   };
 
   // --- Real-time Simulation Engine ---
-  // 1. Data Drift (Vitals Only)
+  // 1. Data Drift (Vitals Only) + periodic analysis
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     if (isSimulating) {
@@ -239,18 +253,24 @@ export default function SepsisDashboard() {
         });
 
         setLastUpdate(new Date());
-      }, 5000); // Updated to 5 seconds
+        // BUG FIX: run analysis on every simulation tick; the in-flight guard
+        // inside runAnalysis prevents concurrent stacking.
+        runAnalysis();
+      }, 5000);
     }
     return () => clearInterval(interval);
-  }, [isSimulating]);
+  }, [isSimulating, runAnalysis]);
 
-  // 2. Auto-Analysis sync
+  // 2. Auto-Analysis sync — trigger once per simulation tick, not on every state change
+  // BUG FIX: original deps array [vitals, labs, demographics, isSimulating] caused
+  // runAnalysis to fire on every keystroke in the UI when simulating.
+  // Now we only trigger when the simulation flag itself changes to true.
   useEffect(() => {
     if (isSimulating) {
       runAnalysis();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vitals, labs, demographics, isSimulating]);
+  }, [isSimulating]);
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-brand-bg text-brand-text font-sans selection:bg-brand-primary/10">
@@ -537,19 +557,27 @@ export default function SepsisDashboard() {
                     </div>
                   </div>
 
-                  <div className="mt-5 pt-4 border-t border-brand-border flex justify-end">
-                    <button 
-                      disabled={isAnalyzing}
-                      onClick={runAnalysis}
-                      className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-brand-primary/50 text-white rounded font-bold text-[13px] shadow-sm transition-all active:scale-95 flex items-center gap-2"
-                    >
-                      {isAnalyzing ? (
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      ) : (
-                        <ChevronRight size={16} />
-                      )}
-                      Evaluate Sepsis Probability
-                    </button>
+                  <div className="mt-5 pt-4 border-t border-brand-border flex flex-col gap-3">
+                    {/* BUG FIX: surface API errors to the clinician */}
+                    {analysisError && (
+                      <div className="px-4 py-3 bg-red-50 border border-red-200 rounded text-[12px] text-brand-danger leading-snug">
+                        <span className="font-bold">Analysis error: </span>{analysisError}
+                      </div>
+                    )}
+                    <div className="flex justify-end">
+                      <button 
+                        disabled={isAnalyzing}
+                        onClick={runAnalysis}
+                        className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-brand-primary/50 text-white rounded font-bold text-[13px] shadow-sm transition-all active:scale-95 flex items-center gap-2"
+                      >
+                        {isAnalyzing ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        ) : (
+                          <ChevronRight size={16} />
+                        )}
+                        Evaluate Sepsis Probability
+                      </button>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -649,12 +677,29 @@ export default function SepsisDashboard() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className={`rounded-lg p-5 flex border-2 gap-5 items-center transition-all ${
+                    className="flex flex-col gap-3"
+                  >
+                    {/* Data Quality Warning Banner — shown when labs are absent/partial */}
+                    {result.dataQualityWarnings?.length > 0 && (
+                      <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-amber-600 font-bold text-[12px] uppercase tracking-wide">⚠ Reduced Prediction Confidence</span>
+                          <span className="ml-auto text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-300 rounded px-2 py-0.5">
+                            Confidence {Math.round(result.confidenceScore * 100)}%
+                          </span>
+                        </div>
+                        {result.dataQualityWarnings.map((w, i) => (
+                          <p key={i} className="text-[12px] text-amber-800 leading-snug">{w}</p>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className={`rounded-lg p-5 flex border-2 gap-5 items-center transition-all ${
                       result.alertLevel === 'critical' ? 'bg-[#fff5f5] border-brand-danger text-brand-text shadow-sm' :
                       result.alertLevel === 'warning' ? 'bg-orange-50 border-brand-warning text-brand-text' :
                       'bg-emerald-50 border-brand-success text-brand-text'
                     }`}
-                  >
+                    >
                     <div className={`text-center pr-5 border-r min-w-[100px] ${
                       result.alertLevel === 'critical' ? 'border-[#feb2b2]' :
                       result.alertLevel === 'warning' ? 'border-brand-warning/30' :
@@ -709,6 +754,25 @@ export default function SepsisDashboard() {
                         'Patient risk markers remain within baseline parameters. Continue routine monitoring per unit protocol.'}
                       </div>
                     </div>
+                    {/* Confidence meter row */}
+                    {result.confidenceScore !== undefined && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-[10px] text-brand-text-secondary font-medium uppercase tracking-wide whitespace-nowrap">Model confidence</span>
+                        <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              result.confidenceScore >= 0.80 ? 'bg-brand-success' :
+                              result.confidenceScore >= 0.60 ? 'bg-amber-400' : 'bg-red-400'
+                            }`}
+                            style={{ width: `${Math.round(result.confidenceScore * 100)}%` }}
+                          />
+                        </div>
+                        <span className={`text-[10px] font-bold ${
+                          result.confidenceScore >= 0.80 ? 'text-brand-success' :
+                          result.confidenceScore >= 0.60 ? 'text-amber-500' : 'text-red-500'
+                        }`}>{Math.round(result.confidenceScore * 100)}%</span>
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -921,6 +985,8 @@ function AttentionHeatmap({ weights }: { weights: number[] }) {
     if (!svgRef.current || !weights.length) return;
 
     const svg = d3.select(svgRef.current);
+    // BUG FIX: always clear before drawing to prevent D3 double-render in
+    // React 19 StrictMode (which double-invokes effects on mount).
     svg.selectAll("*").remove();
 
     const width = 280;
@@ -952,7 +1018,7 @@ function AttentionHeatmap({ weights }: { weights: number[] }) {
       .append("title")
       .text(d => `Weight: ${d.toFixed(3)}`);
 
-    // Labelling
+    // Labels
     svg.selectAll("text.label")
       .data(['H-5', 'H-4', 'H-3', 'H-2', 'H-1', 'H-0'])
       .enter()
@@ -966,7 +1032,7 @@ function AttentionHeatmap({ weights }: { weights: number[] }) {
       .attr("fill", "#2D3748")
       .text(d => d);
 
-    // Value Labels
+    // Value labels
     svg.selectAll("text.value")
       .data(weights)
       .enter()
@@ -980,6 +1046,11 @@ function AttentionHeatmap({ weights }: { weights: number[] }) {
       .attr("fill", d => d > 0.2 ? "white" : "#2D3748")
       .text(d => d.toFixed(2));
 
+    // BUG FIX: cleanup function removes all SVG nodes on unmount / re-render
+    // to prevent stale element accumulation on hot-reload
+    return () => {
+      d3.select(svgRef.current).selectAll("*").remove();
+    };
   }, [weights]);
 
   return <svg ref={svgRef} width={280} height={90} className="overflow-visible" />;
@@ -1188,6 +1259,10 @@ function DetailedChart({ data, width, height, color, minVal, maxVal }: {
       .attr("stroke", color)
       .attr("stroke-width", 1);
 
+    // BUG FIX: cleanup to prevent double-render accumulation in React 19 StrictMode
+    return () => {
+      d3.select(svgRef.current).selectAll("*").remove();
+    };
   }, [data, width, height, color, minVal, maxVal]);
 
   return <svg ref={svgRef} width={width} height={height} className="overflow-visible" />;
@@ -1224,6 +1299,10 @@ function Sparkline({ data, width, height, color }: { data: number[], width: numb
       .attr("stroke-linecap", "round")
       .attr("d", line);
 
+    // BUG FIX: cleanup to prevent double-render accumulation
+    return () => {
+      d3.select(svgRef.current).selectAll("*").remove();
+    };
   }, [data, width, height, color]);
 
   return <svg ref={svgRef} width={width} height={height} className="overflow-visible" />;

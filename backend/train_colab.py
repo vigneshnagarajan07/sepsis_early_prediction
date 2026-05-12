@@ -1,5 +1,5 @@
 """
-COIMBATORE SEPSIS AI — COMPLETE PRODUCTION TRAINING PIPELINE
+SEPSIS AI — COMPLETE PRODUCTION TRAINING PIPELINE
 =============================================================
 Single cell. Paste entirely into one Colab cell and run.
 
@@ -48,8 +48,8 @@ from sklearn.metrics       import (
 )
 
 # ── Paths ─────────────────────────────────────────────────────────
-TS_PATH   = "/content/coimbatore_v2_timeseries.csv"
-META_PATH = "/content/coimbatore_v2_meta.csv"
+TS_PATH   = "/content/sepsis_v2_timeseries.csv"
+META_PATH = "/content/sepsis_v2_meta.csv"
 
 # ─────────────────────────────────────────────────────────────────
 # FEATURE REGISTRY
@@ -90,7 +90,7 @@ LAB_BOOSTER_COLS = VITAL_FEAT + [
 ]  # 36 + 14 = 50 features
 
 print("="*60)
-print("  COIMBATORE SEPSIS AI — PRODUCTION TRAINING")
+print("  SEPSIS AI — PRODUCTION TRAINING")
 print("="*60)
 print(f"  LGBM features : {len(VITAL_FEAT)}")
 print(f"  XGB  features : {len(LAB_BOOSTER_COLS)}")
@@ -581,7 +581,7 @@ axes[3].bar(["GREEN","AMBER","RED"], tier_ppvs,
 axes[3].set(title="PPV per alert tier", ylabel="Fraction truly septic", ylim=[0,1])
 axes[3].grid(alpha=0.3, axis="y")
 
-plt.suptitle("Coimbatore Sepsis AI — Evaluation Results", fontsize=13, y=1.01)
+plt.suptitle("Sepsis AI — Evaluation Results", fontsize=13, y=1.01)
 plt.tight_layout()
 plt.savefig("/content/evaluation_results.png", bbox_inches="tight", dpi=150)
 plt.show()

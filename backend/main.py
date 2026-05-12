@@ -27,7 +27,9 @@ log = logging.getLogger("sepsis-api")
 
 class LabEntry(BaseModel):
     value:     float = 0.0
-    performed: bool  = True
+    # FIX: default False — omitted lab means not drawn, not drawn-with-value-zero.
+    # Lactate=0.0 is physiologically impossible and would falsely lower risk score.
+    performed: bool  = False
 
 class Vitals(BaseModel):
     hr:          float = Field(default=85,   ge=30,  le=250)
@@ -45,7 +47,8 @@ class Vitals(BaseModel):
     def check_map_sbp_consistency(self) -> "Vitals":
         if self.map > self.systolicBp:
             raise ValueError(
-                f"MAP ({self.map}) cannot exceed systolicBp ({self.systolicBp}). "
+                f"MAP cannot exceed systolicBp "
+                f"(got MAP={self.map}, systolicBp={self.systolicBp}). "
                 "Check your inputs."
             )
         return self
@@ -67,8 +70,11 @@ class Labs(BaseModel):
     platelets: LabEntry = LabEntry()
     creatinine:LabEntry = LabEntry()
     bilirubin: LabEntry = LabEntry()
-    dengueNS1: LabEntry = LabEntry(value=0)
-    malariaRDT:LabEntry = LabEntry(value=0)
+    crp:       LabEntry = LabEntry()
+    # Tropical POC tests — not routinely ordered in most Tier 2/3 hospitals.
+    # FIX: explicit performed=False so omitting these fields means 'not tested'.
+    dengueNS1: LabEntry = LabEntry(value=0, performed=False)
+    malariaRDT:LabEntry = LabEntry(value=0, performed=False)
 
 class PreviousLabs(BaseModel):
     lactate:   LabEntry | None = None
@@ -114,9 +120,18 @@ class PredictRequest(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     h = model_eng.health()
-    log.info(f"Startup  →  XGBoost={h['xgb_loaded']}  LightGBM={h['lgbm_loaded']}")
+    log.info(
+        f"Startup  →  LightGBM={h['lgbm_loaded']}  XGBoost={h['xgb_loaded']}  "
+        f"Platt={h['platt_loaded']}  Registry={h['registry_loaded']}"
+    )
     if not h["models_ready"]:
-        log.warning("⚠  No models loaded — all predictions will fail")
+        log.warning("⚠  LightGBM not loaded — all predictions will fail")
+    if not h["platt_loaded"]:
+        log.warning("⚠  platt_scaler.pkl missing — raw uncalibrated scores will be served")
+    if not h["registry_loaded"]:
+        log.warning("⚠  feature_registry.json missing — XGBoost disabled, column order unvalidated")
+    if h["fully_ready"]:
+        log.info("✓  All models and artifacts loaded — fully ready")
     yield
 
 app = FastAPI(
@@ -165,14 +180,12 @@ async def log_requests(request: Request, call_next):
 @app.get("/api/health")
 async def health():
     """Health-check used by the frontend and orchestration layer."""
-    # BUG FIX: health() now derives status from the live model objects,
-    # not from module-level booleans set at import time.
     h    = model_eng.health()
+    # models_ready = can serve predictions (LGBM at minimum)
+    # fully_ready  = LGBM + Platt + feature registry all loaded
     code = 200 if h["models_ready"] else 503
-    return JSONResponse(
-        content={"status": "ok" if h["models_ready"] else "degraded", **h},
-        status_code=code,
-    )
+    status = "ok" if h["fully_ready"] else ("degraded" if h["models_ready"] else "down")
+    return JSONResponse(content={"status": status, **h}, status_code=code)
 
 
 @app.post("/api/predict")
@@ -231,8 +244,14 @@ async def predict(req: PredictRequest):
 
 @app.get("/api/features")
 async def feature_names():
-    """Returns the feature name lists — useful for debugging / paper appendix."""
+    """Returns the actual training feature lists from feature_registry.json.
+    Falls back to hardcoded lists if registry is absent.
+    Use for debugging column order and paper appendix verification."""
+    from models import _lgbm_feats, _xgb_feats
     return {
-        "lgbm_features": feat_eng.LGBM_FEATURES,
-        "xgb_features":  feat_eng.XGB_FEATURES,
+        "source":        "registry" if _lgbm_feats else "hardcoded_fallback",
+        "lgbm_features": _lgbm_feats if _lgbm_feats else feat_eng.LGBM_FEATURES,
+        "xgb_features":  _xgb_feats  if _xgb_feats  else feat_eng.XGB_FEATURES,
+        "lgbm_count":    len(_lgbm_feats) if _lgbm_feats else len(feat_eng.LGBM_FEATURES),
+        "xgb_count":     len(_xgb_feats)  if _xgb_feats  else len(feat_eng.XGB_FEATURES),
     }

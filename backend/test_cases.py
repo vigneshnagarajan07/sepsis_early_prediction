@@ -166,7 +166,7 @@ def run_unit_tests() -> None:
     check("No NaN in LGBM vector", not np.isnan(lgbm_vec).any())
     check("No NaN in XGB vector",  not np.isnan(xgb_vec).any())
     check("LGBM vector length == 36", len(lgbm_vec) == 36)
-    check("XGB vector length == 42",  len(xgb_vec)  == 42)
+    check("XGB vector length == 51",  len(xgb_vec)  == 51)
 
     # ── Delta baseline index ──────────────────────────────────────────────────
     # 5-second intervals, 12 readings → 60 s total; 3 h far exceeds buffer → idx 0

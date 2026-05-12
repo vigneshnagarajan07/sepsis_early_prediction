@@ -1,0 +1,27 @@
+{
+  "ensemble": {
+    "no_labs": {
+      "lgbm": 1.0,
+      "xgb": 0.0
+    },
+    "has_labs": {
+      "lgbm": 0.4,
+      "xgb": 0.6
+    }
+  },
+  "alert_thresholds": {
+    "red": 0.39,
+    "amber": 0.2
+  },
+  "evaluation": {
+    "fusion_auroc": 0.9896,
+    "fusion_auprc": 0.9878,
+    "sensitivity": 0.9624,
+    "specificity": 0.9832,
+    "s1_lgbm_auroc": 0.9876,
+    "s2_xgb_auroc": 0.9901
+  },
+  "xgb_trained_on_has_lab_only": true,
+  "platt_input_feature": "TFT_Score",
+  "platt_used_for": "display_calibration_only"
+}

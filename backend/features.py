@@ -38,9 +38,16 @@ LGBM_FEATURES = [
     "LabScenario_partial_full", "LabScenario_full",
 ]  # 36 features — frozen to match lgbm_stream1.txt training schema
 
+# XGB extra features appended after VITAL_FEAT (36)
+# Order matches LAB_BOOSTER_COLS in train_colab.py — position-based inference.
+# TFT_Score is injected at inference time by models._xgb_vec().
 XGB_EXTRA_FEATURES = [
-    "Lactate", "PCT", "WBC", "Platelets", "Creatinine", "Bilirubin"
-]  # → total 42 features
+    "TFT_Score",
+    "Lactate", "PCT", "WBC", "Platelets", "Creatinine", "Bilirubin",
+    "WBC_Tested", "Lactate_Tested", "Creatinine_Tested",
+    "PCT_Tested", "Platelets_Tested", "Bilirubin_Tested",
+    "CRP", "CRP_Tested",
+]  # 15 extras → total 51 features (36 LGBM + 15 XGB-only)
 
 XGB_FEATURES = LGBM_FEATURES + XGB_EXTRA_FEATURES
 
@@ -231,8 +238,14 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
     )
 
     # ── Tropical / POC labs ──────────────────────────────────────────────────
-    dengue_ns1  = float(labs.get("dengueNS1",  {}).get("value", 0))
-    malaria_rdt = float(labs.get("malariaRDT", {}).get("value", 0))
+    # FIX: only read value when performed=True.
+    # With performed=False default, labs.get("dengueNS1", {}).get("value", 0)
+    # would return 0 anyway — but being explicit guards against frontend bugs
+    # where performed=True is accidentally sent with value=0.
+    _dns1_lab   = labs.get("dengueNS1",  {"value": 0, "performed": False})
+    _mrdt_lab   = labs.get("malariaRDT", {"value": 0, "performed": False})
+    dengue_ns1  = float(_dns1_lab.get("value", 0)) if _dns1_lab.get("performed", False) else 0.0
+    malaria_rdt = float(_mrdt_lab.get("value", 0)) if _mrdt_lab.get("performed", False) else 0.0
 
     # ── Demographics ─────────────────────────────────────────────────────────
     age              = float(d["age"])
@@ -261,12 +274,28 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
     creatinine = _impute_lab(labs.get("creatinine", {"performed": False}), "creatinine")
     bilirubin  = _impute_lab(labs.get("bilirubin",  {"performed": False}), "bilirubin")
 
+    # ── _Tested flags — match LAB_BOOSTER_COLS in train_colab.py ─────────────
+    wbc_tested        = int(labs.get("wbc",        {"performed": False}).get("performed", False))
+    lactate_tested    = int(labs.get("lactate",    {"performed": False}).get("performed", False))
+    creatinine_tested = int(labs.get("creatinine", {"performed": False}).get("performed", False))
+    pct_tested        = int(labs.get("pct",        {"performed": False}).get("performed", False))
+    platelets_tested  = int(labs.get("platelets",  {"performed": False}).get("performed", False))
+    bilirubin_tested  = int(labs.get("bilirubin",  {"performed": False}).get("performed", False))
+
+    # CRP — additional inflammatory marker
+    _crp_lab    = labs.get("crp", {"performed": False, "value": 0.0})
+    crp         = float(_crp_lab.get("value", 0.0)) if _crp_lab.get("performed", False) else 0.0
+    crp_tested  = int(_crp_lab.get("performed", False))
+
     # ── Assemble feat_dict ────────────────────────────────────────────────────
     feat_dict: dict[str, Any] = {
         "HR": hr, "HRV_SDNN": hrv_sdnn, "SpO2": spo2,
         "Temp": temp, "MAP": map_, "RespRate": resp,
         "CRT": crt, "ShockIndex": shock_index,
-        "MotionArtifact": 0, "SensorDetached": 0,
+        # Wearable sensor quality flags — read from payload if present, else 0.
+        # Frontend wearable stream can set these when the sensor reports poor signal.
+        "MotionArtifact": int(v.get("motionArtifact", 0)),
+        "SensorDetached": int(v.get("sensorDetached", 0)),
         "qSOFA": qsofa,
 
         "Delta_3h_HR":        delta_hr,
@@ -295,6 +324,21 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
 
         "Lactate": lactate, "PCT": pct, "WBC": wbc,
         "Platelets": platelets, "Creatinine": creatinine, "Bilirubin": bilirubin,
+
+        # _Tested flags (match LAB_BOOSTER_COLS in training notebook)
+        "WBC_Tested":        wbc_tested,
+        "Lactate_Tested":    lactate_tested,
+        "Creatinine_Tested": creatinine_tested,
+        "PCT_Tested":        pct_tested,
+        "Platelets_Tested":  platelets_tested,
+        "Bilirubin_Tested":  bilirubin_tested,
+
+        # CRP
+        "CRP":       crp,
+        "CRP_Tested": crp_tested,
+
+        # TFT_Score placeholder — filled by models._xgb_vec() at inference
+        "TFT_Score": 0.0,
 
         # Non-model features: stored for SHAP drivers / clinical-boost rules
         "Oliguria":       oliguria,

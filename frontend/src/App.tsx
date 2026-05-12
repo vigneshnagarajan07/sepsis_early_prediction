@@ -112,15 +112,18 @@ export default function SepsisDashboard() {
   });
 
   // 3. Labs (Main Section 2)
+  // FIX: all performed:false — blank form = no labs drawn.
+  // Values pre-filled as sensible defaults for when nurse toggles performed:true.
+  // Sending performed:false to backend triggers median imputation, not value=0.
   const [labs, setLabs] = useState<Labs>({
-    lactate: { value: 1.2, performed: true },
-    pct: { value: 0.05, performed: true },
-    wbc: { value: 8.5, performed: true },
-    platelets: { value: 250, performed: true },
-    creatinine: { value: 1.0, performed: true },
-    bilirubin: { value: 0.5, performed: true },
-    dengueNS1: { value: 0, performed: true },
-    malariaRDT: { value: 0, performed: true },
+    lactate: { value: 1.2, performed: false },
+    pct: { value: 0.05, performed: false },
+    wbc: { value: 8.5, performed: false },
+    platelets: { value: 250, performed: false },
+    creatinine: { value: 1.0, performed: false },
+    bilirubin: { value: 0.5, performed: false },
+    dengueNS1: { value: 0, performed: false },
+    malariaRDT: { value: 0, performed: false },
   });
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);

@@ -144,19 +144,22 @@ app = FastAPI(
 # For production deployments behind an nginx reverse proxy, set
 # ALLOWED_ORIGINS="https://your-hospital-domain.in" in the environment.
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+# FIX #19: guard against ALLOWED_ORIGINS="*" — that combo with
+# allow_credentials=True is rejected by all browsers (spec violation).
 _origins = (
-    [o.strip() for o in _raw_origins.split(",") if o.strip()]
-    if _raw_origins
+    [o.strip() for o in _raw_origins.split(",") if o.strip() and o.strip() != "*"]
+    if _raw_origins and _raw_origins.strip() != "*"
     else ["*"]
 )
+_allow_creds = bool(_raw_origins) and "*" not in _origins
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "Authorization"],
-    # allow_credentials must be False when allow_origins=["*"] (browser spec)
-    allow_credentials=bool(_raw_origins),
+    # FIX #19: allow_credentials only when origins are explicit (not wildcard)
+    allow_credentials=_allow_creds,
 )
 
 
@@ -214,15 +217,18 @@ async def predict(req: PredictRequest):
         lgbm_vec, xgb_vec, feat_dict = feat_eng.build_feature_vector(payload)
         result = model_eng.predict(lgbm_vec, xgb_vec, feat_dict, payload)
         result["shapDrivers"] = feat_eng.top_shap_drivers(feat_dict, result["aiScore"])
+        # FIX #18: use .get() not [] — if build_feature_vector ever fails to
+        # populate a delta key, [] raises KeyError inside the try block which
+        # the generic handler catches and returns a 500.
         result["deltaInfo"] = {
             "sourceReadings":  feat_dict.get("DeltaSourceReadings", 0),
             "intervalSec":     feat_dict.get("DeltaIntervalSec", 0.0),
-            "deltaHR":         round(feat_dict["Delta_3h_HR"], 2),
-            "deltaMAP":        round(feat_dict["Delta_3h_MAP"], 2),
-            "deltaResp":       round(feat_dict["Delta_3h_RespRate"], 2),
-            "deltaTemp":       round(feat_dict["Delta_3h_Temp"], 3),
-            "deltaLactate":    round(feat_dict["Delta_3h_Lactate"], 3),
-            "deltaCreatinine": round(feat_dict["Delta_3h_Creatinine"], 3),
+            "deltaHR":         round(feat_dict.get("Delta_3h_HR", 0.0), 2),
+            "deltaMAP":        round(feat_dict.get("Delta_3h_MAP", 0.0), 2),
+            "deltaResp":       round(feat_dict.get("Delta_3h_RespRate", 0.0), 2),
+            "deltaTemp":       round(feat_dict.get("Delta_3h_Temp", 0.0), 3),
+            "deltaLactate":    round(feat_dict.get("Delta_3h_Lactate", 0.0), 3),
+            "deltaCreatinine": round(feat_dict.get("Delta_3h_Creatinine", 0.0), 3),
         }
         return result
 
@@ -246,8 +252,11 @@ async def predict(req: PredictRequest):
 async def feature_names():
     """Returns the actual training feature lists from feature_registry.json.
     Falls back to hardcoded lists if registry is absent.
-    Use for debugging column order and paper appendix verification."""
-    from models import _lgbm_feats, _xgb_feats
+    Use for debugging column order and paper appendix verification.
+    FIX #20: import moved to module level via model_eng reference."""
+    import models as _models_ref
+    _lgbm_feats = _models_ref._lgbm_feats
+    _xgb_feats  = _models_ref._xgb_feats
     return {
         "source":        "registry" if _lgbm_feats else "hardcoded_fallback",
         "lgbm_features": _lgbm_feats if _lgbm_feats else feat_eng.LGBM_FEATURES,
@@ -255,3 +264,119 @@ async def feature_names():
         "lgbm_count":    len(_lgbm_feats) if _lgbm_feats else len(feat_eng.LGBM_FEATURES),
         "xgb_count":     len(_xgb_feats)  if _xgb_feats  else len(feat_eng.XGB_FEATURES),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Patient Stream Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+
+import patient_stream as ps
+
+class SessionStartRequest(BaseModel):
+    patient_id: str
+
+
+@app.get("/api/patients")
+async def list_patients():
+    """
+    List all available patient demo files in data/patients/.
+    Used by the frontend patient selector dropdown.
+    """
+    try:
+        return {"patients": ps.list_patients()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/session/start")
+async def session_start(req: SessionStartRequest):
+    """
+    Load a patient file and return the first reading + prediction.
+    Overwrites any existing active session.
+
+    Body: { "patient_id": "DEMO_SEPSIS_NOLABS" }
+    Returns: { vitals, labs, demographics, prediction, _meta }
+    """
+    try:
+        payload = ps.start_session(req.patient_id)
+        return await _run_prediction_on_payload(payload)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        log.exception("session/start error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/session/tick")
+async def session_tick():
+    """
+    Advance the session by one reading and return vitals + prediction.
+    Called by the frontend every `interval_minutes` seconds during playback.
+
+    Returns same shape as /api/predict plus:
+      _meta.done = true when all readings exhausted
+    """
+    try:
+        payload = ps.tick()
+        return await _run_prediction_on_payload(payload)
+    except StopIteration as e:
+        # All readings done — return done flag so frontend stops polling
+        return JSONResponse(
+            content={"done": True, "message": str(e)},
+            status_code=200,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log.exception("session/tick error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/session/status")
+async def session_status():
+    """Return current session metadata without advancing the reading."""
+    return ps.session_status()
+
+
+@app.post("/api/session/stop")
+async def session_stop():
+    """Stop the active session and clear server-side state."""
+    ps.stop_session()
+    return {"stopped": True}
+
+
+async def _run_prediction_on_payload(payload: dict) -> dict:
+    """
+    Shared prediction runner used by both session/start and session/tick.
+    Runs the full LGBM → XGB → Platt pipeline on the session payload,
+    attaches SHAP drivers and delta info, and merges _meta into the response.
+    """
+    meta = payload.pop("_meta")
+
+    try:
+        lgbm_vec, xgb_vec, feat_dict = feat_eng.build_feature_vector(payload)
+        result = model_eng.predict(lgbm_vec, xgb_vec, feat_dict, payload)
+        result["shapDrivers"] = feat_eng.top_shap_drivers(feat_dict, result["aiScore"])
+        result["deltaInfo"] = {
+            "sourceReadings":  feat_dict.get("DeltaSourceReadings", 0),
+            "intervalSec":     feat_dict.get("DeltaIntervalSec", 0.0),
+            "deltaHR":         round(feat_dict.get("Delta_3h_HR", 0.0), 2),
+            "deltaMAP":        round(feat_dict.get("Delta_3h_MAP", 0.0), 2),
+            "deltaResp":       round(feat_dict.get("Delta_3h_RespRate", 0.0), 2),
+            "deltaTemp":       round(feat_dict.get("Delta_3h_Temp", 0.0), 3),
+            "deltaLactate":    round(feat_dict.get("Delta_3h_Lactate", 0.0), 3),
+            "deltaCreatinine": round(feat_dict.get("Delta_3h_Creatinine", 0.0), 3),
+        }
+    except RuntimeError as e:
+        log.error(f"Model unavailable: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        log.exception("Prediction error in session pipeline")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Attach stream metadata and raw vitals/labs so frontend can update its state
+    result["_meta"]       = meta
+    result["vitals"]      = payload["vitals"]
+    result["labs"]        = payload["labs"]
+    result["demographics"]= payload["demographics"]
+    return result

@@ -48,6 +48,8 @@ XGB_EXTRA_FEATURES = [
     "PCT_Tested", "Platelets_Tested", "Bilirubin_Tested",
     "CRP", "CRP_Tested",
 ]  # 15 extras → total 51 features (36 LGBM + 15 XGB-only)
+# NOTE: This matches xgb_lab_booster_cols in feature_registry.json
+# Cross-verify at startup: assert bst.num_features() == len(XGB_FEATURES)
 
 XGB_FEATURES = LGBM_FEATURES + XGB_EXTRA_FEATURES
 
@@ -112,7 +114,7 @@ def _impute_lab(lab: dict[str, Any], key: str) -> float:
         "creatinine": 0.95,
         "bilirubin":  0.6,
     }
-    if lab.get("performed", True):
+    if lab.get("performed", False):   # FIX #10: default False matches all callers
         return float(lab.get("value", MEDIANS.get(key, 0.0)))
     return MEDIANS.get(key, 0.0)
 
@@ -135,8 +137,10 @@ def _baseline_index(history_len: int, interval_sec: float) -> int:
 
 def _vital_delta(current: float,
                  history: list[float],
-                 interval_sec: float = 0.0) -> float:
-    """Compute signed delta: current − baseline. Returns 0.0 with no history."""
+                 interval_sec: float = 0.0,
+                 key: str = "") -> float:
+    """Compute signed delta: current − baseline. Returns 0.0 with no history.
+    FIX #13: key param added for debug logging when history is absent."""
     if not history or len(history) < 2:
         return 0.0
     idx = _baseline_index(len(history), interval_sec)
@@ -185,6 +189,13 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
     d    = payload["demographics"]
 
     hist      = payload.get("vitalsHistory", {})
+    # FIX #13: log when expected history keys are missing so deltas are 0
+    # This is silent in production but surfaces during debugging
+    _missing_hist = [k for k in ["hr","map","resp","temp"] if not hist.get(k)]
+    if _missing_hist and payload.get("intervalSeconds", 0) > 0:
+        import logging as _log
+        _log.getLogger("sepsis-api").debug(
+            f"vitalsHistory missing keys {_missing_hist} — deltas will be 0")
     ivl       = float(payload.get("intervalSeconds", 0.0))
     prev_labs = payload.get("previousLabs", {})
 
@@ -351,9 +362,9 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
         "DeltaIntervalSec":    ivl,
     }
 
-    # NaN guard — replace any NaN with safe fallback so inference always completes
-    for feat in XGB_FEATURES:
-        val = feat_dict.get(feat)
+    # NaN guard — covers ALL features in feat_dict, not just XGB_FEATURES
+    # FIX #12: iterating only XGB_FEATURES would miss LGBM-only features if lists diverge
+    for feat, val in feat_dict.items():
         if isinstance(val, float) and np.isnan(val):
             feat_dict[feat] = _NAN_FALLBACKS.get(feat, 0.0)
 

@@ -14,7 +14,11 @@ import {
   Beaker,
   TrendingUp,
   TrendingDown,
-  History
+  History,
+  Database,
+  PlayCircle,
+  StopCircle,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as d3 from 'd3';
@@ -64,8 +68,19 @@ interface Labs {
   platelets: LabTest;
   creatinine: LabTest;
   bilirubin: LabTest;
+  crp: LabTest; // FIX #21: CRP was in backend Labs model but missing from frontend interface
   dengueNS1: LabTest;
   malariaRDT: LabTest;
+}
+
+// Patient file metadata from /api/patients
+interface PatientMeta {
+  patient_id: string;
+  label: string;
+  description: string;
+  total_readings: number;
+  interval_minutes: number;
+  has_labs: boolean;
 }
 
 // --- Components ---
@@ -122,12 +137,20 @@ export default function SepsisDashboard() {
     platelets: { value: 250, performed: false },
     creatinine: { value: 1.0, performed: false },
     bilirubin: { value: 0.5, performed: false },
+    crp: { value: 5.0, performed: false },
     dengueNS1: { value: 0, performed: false },
     malariaRDT: { value: 0, performed: false },
   });
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  // ── File-feed pipeline state ──
+  const [isFileFed, setIsFileFed]     = useState(false);
+  const [patients, setPatients]       = useState<PatientMeta[]>([]);
+  const [activePatient, setActivePatient] = useState<PatientMeta | null>(null);
+  const [feedProgress, setFeedProgress]   = useState({ current: 0, total: 0 });
+  const [showPatientPicker, setShowPatientPicker] = useState(false);
+  const feedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // BUG FIX: track in-flight requests to prevent concurrent stacking during simulation
   const analysisInFlight = useRef(false);
   // BUG FIX: surface API errors to the clinician instead of only console.error
@@ -140,7 +163,7 @@ export default function SepsisDashboard() {
     qsofaScore: number;
     alertLevel: 'none' | 'warning' | 'critical';
     attentionWeights: number[];
-    modelScores: Record<string, number>;
+    modelScores: Record<string, number | null>; // FIX #22: values can be null (e.g. xgb_lab when no labs)
     featureSummary: { crt: number; shockIndex: number; labScenario: string };
     shapDrivers: Array<{ feature: string; value: number; shap: number }>;
     confidenceScore: number;
@@ -212,6 +235,142 @@ export default function SepsisDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vitals, labs, demographics, vitalsHistory, previousLabs, isSimulating]);
 
+  // ─── File-Feed Pipeline ──────────────────────────────────────────
+  // Loads patient list on mount
+  useEffect(() => {
+    fetch('/api/patients')
+      .then(r => r.json())
+      .then(d => setPatients(d.patients || []))
+      .catch(() => {});
+  }, []);
+
+  // Apply a tick response — updates ALL state from backend file reading
+  const applyTickResponse = useCallback((data: any) => {
+    if (!data || data.done) return;
+
+    // Overwrite vitals from file
+    if (data.vitals) {
+      setVitals({
+        hr:          data.vitals.hr,
+        map:         data.vitals.map,
+        resp:        data.vitals.resp,
+        temp:        data.vitals.temp,
+        o2sat:       data.vitals.o2sat,
+        systolicBp:  data.vitals.systolicBp,
+        gcs:         data.vitals.gcs,
+        urineOutput: data.vitals.urineOutput,
+      });
+    }
+
+    // Overwrite labs from file
+    if (data.labs) {
+      setLabs(prev => ({
+        ...prev,
+        ...Object.fromEntries(
+          Object.entries(data.labs).map(([k, v]) => [k, v as any])
+        ),
+      }));
+    }
+
+    // Update vitals history from backend-computed window
+    if (data.vitals) {
+      setVitalsHistory(prev => {
+        const next = { ...prev };
+        (Object.keys(data.vitals) as (keyof Vitals)[]).forEach(k => {
+          if (k in prev) {
+            next[k] = [...(prev[k] || []).slice(-19), data.vitals[k]];
+          }
+        });
+        return next;
+      });
+    }
+
+    // Set prediction result directly
+    if (data.aiScore !== undefined) setResult(data);
+
+    // Update progress
+    if (data._meta) {
+      setFeedProgress({
+        current: data._meta.reading_index + 1,
+        total:   data._meta.total_readings,
+      });
+    }
+    setLastUpdate(new Date());
+  }, []);
+
+  // Start a file-feed session with a chosen patient
+  const startFileFeed = useCallback(async (patientId: string) => {
+    // Stop any running simulation
+    setIsSimulating(false);
+    if (feedTimerRef.current) clearInterval(feedTimerRef.current);
+
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      const res = await fetch('/api/session/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patient_id: patientId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || 'Failed to start session');
+      }
+      const data = await res.json();
+      applyTickResponse(data);
+
+      const patient = patients.find(p => p.patient_id === patientId) || null;
+      setActivePatient(patient);
+      setIsFileFed(true);
+      setShowPatientPicker(false);
+
+      // Poll /api/session/tick every interval_minutes converted to ms
+      // Use 5s for demo speed, or actual clinical interval
+      const intervalMs = ((data._meta?.interval_minutes ?? 15) * 1000);
+      // Demo: clamp to 4s minimum so it moves visibly
+      const pollMs = Math.max(4000, Math.min(intervalMs, 15000));
+
+      feedTimerRef.current = setInterval(async () => {
+        try {
+          const tickRes = await fetch('/api/session/tick');
+          const tickData = await tickRes.json();
+          if (tickData.done) {
+            stopFileFeed();
+            return;
+          }
+          applyTickResponse(tickData);
+        } catch {
+          // network blip — keep polling
+        }
+      }, pollMs);
+
+    } catch (e: any) {
+      setAnalysisError(e.message || 'Failed to start file feed');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [patients, applyTickResponse]);
+
+  // Stop file-feed session
+  const stopFileFeed = useCallback(() => {
+    if (feedTimerRef.current) {
+      clearInterval(feedTimerRef.current);
+      feedTimerRef.current = null;
+    }
+    setIsFileFed(false);
+    setActivePatient(null);
+    setFeedProgress({ current: 0, total: 0 });
+    fetch('/api/session/stop', { method: 'POST' }).catch(() => {});
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (feedTimerRef.current) clearInterval(feedTimerRef.current);
+    };
+  }, []);
+  // ─────────────────────────────────────────────────────────────────
+
   // Helper for lab inputs
   const updateLab = (key: keyof Labs, field: 'value' | 'performed', val: any) => {
     setLabs(prev => ({
@@ -229,6 +388,19 @@ export default function SepsisDashboard() {
   };
 
   // --- Real-time Simulation Engine ---
+  // FIX #23: store latest runAnalysis in a ref so the interval closure always
+  // calls the current version without listing runAnalysis as a dep (which would
+  // restart the interval on every vitals state change during simulation).
+  const runAnalysisRef = useRef(runAnalysis);
+  useEffect(() => { runAnalysisRef.current = runAnalysis; }, [runAnalysis]);
+
+  // FIX #23: use a ref to hold the latest runAnalysis so the interval
+  // is NOT recreated every time runAnalysis changes (dep churn).
+  // The interval is created once when simulation starts and reads the
+  // current runAnalysis via ref on every tick.
+  const runAnalysisRef = useRef(runAnalysis);
+  useEffect(() => { runAnalysisRef.current = runAnalysis; }, [runAnalysis]);
+
   // 1. Data Drift (Vitals Only) + periodic analysis
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -256,13 +428,12 @@ export default function SepsisDashboard() {
         });
 
         setLastUpdate(new Date());
-        // BUG FIX: run analysis on every simulation tick; the in-flight guard
-        // inside runAnalysis prevents concurrent stacking.
-        runAnalysis();
+        // Use ref to call current runAnalysis without dep-churn (FIX #23)
+        runAnalysisRef.current();
       }, 5000);
     }
     return () => clearInterval(interval);
-  }, [isSimulating, runAnalysis]);
+  }, [isSimulating]); // FIX #23: runAnalysis removed from deps — accessed via ref
 
   // 2. Auto-Analysis sync — trigger once per simulation tick, not on every state change
   // BUG FIX: original deps array [vitals, labs, demographics, isSimulating] caused
@@ -495,6 +666,14 @@ export default function SepsisDashboard() {
             >
               {isSimulating ? <EyeOff size={14} /> : <Eye size={14} />}
               {isSimulating ? 'Stop Live Feed' : 'Start Live Feed'}
+            </button>
+            <button
+              onClick={() => { setIsSimulating(false); setShowPatientPicker(true); }}
+              disabled={isFileFed}
+              className="px-3 py-1.5 text-[12px] font-medium border border-blue-300 bg-blue-50 rounded text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Database size={14} />
+              {isFileFed ? "Feeding…" : "Load Patient File"}
             </button>
             <div className="text-[12px] text-brand-muted flex items-center gap-1">
               <Clock size={12} />
@@ -804,7 +983,8 @@ export default function SepsisDashboard() {
                             <ShapBar
                               key={d.feature}
                               label={d.feature.replace(/_/g, ' ')}
-                              value={Math.round(Math.abs(d.shap) * 200)}
+                              value={// FIX #27: width capped at 100 — shap*100 with reasonable scale
+                        Math.min(100, Math.round(Math.abs(d.shap) * 150))}
                               color={d.shap > 0 ? 'var(--color-brand-danger)' : 'var(--color-brand-success)'}
                             />
                           ))}
@@ -903,8 +1083,18 @@ export default function SepsisDashboard() {
                         <Activity size={14} className="text-brand-warning" />
                         <h5 className="text-[11px] font-bold text-brand-warning uppercase">Clinical Note</h5>
                       </div>
+                      {/* FIX #24: dynamic note derived from actual vitals, not hardcoded tachycardia */}
                       <p className="text-[11px] text-brand-text opacity-80 leading-snug">
-                        Retrospective analysis of the historical {timeRange} window indicates persistent tachycardia. Continuous monitoring required.
+                        {(() => {
+                          const findings: string[] = [];
+                          if (vitals.hr   > 100) findings.push(`tachycardia (HR ${Math.round(vitals.hr)} bpm)`);
+                          if (vitals.resp > 20)  findings.push(`tachypnoea (RR ${Math.round(vitals.resp)} /min)`);
+                          if (vitals.o2sat < 95) findings.push(`hypoxaemia (SpO₂ ${Math.round(vitals.o2sat)}%)`);
+                          if (vitals.map  < 65)  findings.push(`hypotension (MAP ${Math.round(vitals.map)} mmHg)`);
+                          return findings.length === 0
+                            ? `Retrospective ${timeRange} window: vitals within normal limits. Continue routine monitoring.`
+                            : `Retrospective ${timeRange} window indicates ${findings.join(', ')}. Close monitoring required.`;
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -914,6 +1104,84 @@ export default function SepsisDashboard() {
           )}
         </div>
       </main>
+        {/* ── Patient Picker Modal ───────────────────────────────── */}
+        <AnimatePresence>
+          {showPatientPicker && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+              onClick={() => setShowPatientPicker(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-[16px] font-semibold text-brand-text">Load Patient File</h2>
+                    <p className="text-[12px] text-brand-muted mt-0.5">
+                      Select a patient data file. The backend will stream vitals to the dashboard.
+                    </p>
+                  </div>
+                  <button onClick={() => setShowPatientPicker(false)}
+                    className="p-1.5 hover:bg-gray-100 rounded text-brand-muted">✕</button>
+                </div>
+
+                {patients.length === 0 ? (
+                  <div className="py-8 text-center text-brand-muted text-[13px]">
+                    <Database size={32} className="mx-auto mb-2 opacity-30" />
+                    No patient files found in backend/data/patients/
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
+                    {patients.map(p => (
+                      <button key={p.patient_id}
+                        onClick={() => startFileFeed(p.patient_id)}
+                        className="text-left p-4 rounded-lg border border-brand-border hover:border-blue-400 hover:bg-blue-50 transition-all group"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-brand-text group-hover:text-blue-700">
+                              {p.label}
+                            </p>
+                            <p className="text-[11px] text-brand-muted mt-0.5 leading-snug line-clamp-2">
+                              {p.description}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-[10px] font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+                              {p.total_readings} readings
+                            </span>
+                            {p.has_labs && (
+                              <span className="text-[10px] font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                                + Labs
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 mt-2">
+                          <PlayCircle size={12} className="text-blue-400 group-hover:text-blue-600" />
+                          <span className="text-[11px] text-blue-500 group-hover:text-blue-700">
+                            Stream at {p.interval_minutes}min intervals
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-[10px] text-brand-muted mt-4 pt-3 border-t border-brand-border">
+                  Add custom patients by dropping JSON files into <code className="bg-gray-100 px-1 rounded">backend/data/patients/</code>
+                </p>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
     </div>
   );
 }

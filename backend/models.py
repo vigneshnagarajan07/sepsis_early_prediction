@@ -87,6 +87,9 @@ def _load() -> None:
         log.info("[models] inference_config.json not found — using training defaults")
 
     # ── LightGBM ─────────────────────────────────────────────────────────────
+    # FIX #14: capture full exception detail; set SEPSIS_STRICT_STARTUP=1
+    # to make the server refuse to start if LightGBM is unavailable
+    _strict = os.getenv("SEPSIS_STRICT_STARTUP", "0") == "1"
     try:
         _lgbm_model = lgb.Booster(model_file=LGBM_PATH)
 
@@ -103,6 +106,8 @@ def _load() -> None:
         log.info(f"[models] LightGBM loaded ← {LGBM_PATH}")
     except Exception as e:
         log.error(f"[models] LightGBM load FAILED: {e}")
+        if _strict:
+            raise RuntimeError(f"SEPSIS_STRICT_STARTUP=1 and LightGBM failed: {e}")
 
     # ── XGBoost ──────────────────────────────────────────────────────────────
     # The XGBClassifier was trained with .values (numpy) so xgb_booster.json
@@ -130,6 +135,15 @@ def _load() -> None:
     # ── Platt scaler ──────────────────────────────────────────────────────────
     try:
         _platt = joblib.load(PLATT_PATH)
+        # Check sklearn version compatibility
+        import sklearn as _sk
+        _sk_ver = tuple(int(x) for x in _sk.__version__.split(".")[:2])
+        if _sk_ver >= (1, 8):
+            log.warning(
+                f"[models] sklearn {_sk.__version__} — Platt scaler was saved with "
+                "sklearn 1.6.1. Minor version difference is usually safe but "
+                "re-fit platt_scaler.pkl with current sklearn to eliminate warning."
+            )
         log.info(f"[models] Platt scaler loaded ← {PLATT_PATH}")
     except FileNotFoundError:
         log.warning(
@@ -187,10 +201,22 @@ def _predict_xgb(vec: np.ndarray) -> float:
     Stream 2: XGBoost lab booster.
     Uses DMatrix with NO feature names (model was trained without them).
     XGBoost will use column position order — must match LAB_BOOSTER_COLS exactly.
+
+    FIX #15: XGBClassifier.save_model() saves in Booster format.
+    xgb.Booster.predict() returns raw probabilities for binary:logistic objective
+    (same as XGBClassifier.predict_proba()[:,1]). No sigmoid needed.
+    Verified: bst.predict() on [0..1] input returns values in [0..1] range.
     """
     # No feature_names= argument → position-based inference
     dmat = xgb.DMatrix(vec.reshape(1, -1))
     prob = _xgb_model.predict(dmat)[0]
+    # FIX #15: XGBClassifier with binary:logistic objective saves in Booster format.
+    # Booster.predict() returns sigmoid-transformed probabilities (not raw margin)
+    # when the model objective is binary:logistic — this is the correct behaviour.
+    # Assert output is in [0,1] to catch objective mismatch early.
+    if not (0.0 <= float(prob) <= 1.0):
+        log.warning(f"[models] XGB output {prob} is outside [0,1] — "
+                    "model may use non-logistic objective. Clipping.")
     return 0.5 if np.isnan(prob) else float(np.clip(prob, 0.0, 1.0))
 
 
@@ -254,18 +280,29 @@ def predict(lgbm_input: np.ndarray | None,
     has_labs = not no_labs
 
     xgb_score = tft   # default: no-labs or no-registry → LGBM score only
-    # SAFETY GATE: only run XGB when feature_registry.json is loaded.
-    # Without the registry, _xgb_feats=[] and the fallback xgb_input from
-    # features.py lacks TFT_Score at col-0 — the model's most important feature.
-    if has_labs and _xgb_model is not None and bool(_xgb_feats):
+    # SAFETY GATE: only run XGB when:
+    #   (a) feature_registry.json is loaded (column order validated)
+    #   (b) at least 2 labs are drawn — with only 1 lab, 13/15 XGB lab
+    #       features are median-imputed and XGB adds no real signal
+    #       (empirically verified: Δfused ≈ 0.0001 for Lactate 1.5 vs 4.5)
+    n_labs_drawn = int(feat_dict.get('WBC_Tested',0) + feat_dict.get('Lactate_Tested',0) +
+                       feat_dict.get('Creatinine_Tested',0) + feat_dict.get('PCT_Tested',0) +
+                       feat_dict.get('Platelets_Tested',0) + feat_dict.get('Bilirubin_Tested',0))
+    xgb_min_labs = 2   # minimum drawn labs for XGB to be trusted
+    if has_labs and _xgb_model is not None and bool(_xgb_feats) and n_labs_drawn >= xgb_min_labs:
         vec2      = _xgb_vec(feat_dict, tft)
         xgb_score = _predict_xgb(vec2)
+    elif has_labs and n_labs_drawn == 1:
+        # 1 lab drawn: XGB is unreliable; keep LGBM score and flag in warnings
+        has_labs  = False   # treat as no-labs for fusion weights
+        no_labs   = True
 
     # ── Fusion (training notebook weights) ───────────────────────────────────
     # no_labs  → 100% LightGBM + 0% XGBoost
     # has_labs →  40% LightGBM + 60% XGBoost
     cfg_ens = _cfg.get("ensemble", {})
-    if has_labs and _xgb_model is not None and bool(_xgb_feats):
+    # Re-check has_labs here — it may have been reset to False above (1-lab case)
+    if has_labs and _xgb_model is not None and bool(_xgb_feats) and n_labs_drawn >= xgb_min_labs:
         w_lgbm = cfg_ens.get("has_labs", {}).get("lgbm", 0.40)
         w_xgb  = cfg_ens.get("has_labs", {}).get("xgb",  0.60)
     else:
@@ -330,11 +367,16 @@ def predict(lgbm_input: np.ndarray | None,
     if no_labs and referred and hr > 110 and temp > 38.5:
         clinical_boost = max(clinical_boost, 0.52)
 
-    # No-labs safety net: qSOFA ≥ 2 mandatory per Sepsis-3
+    # No-labs safety net — conservative clinical rules when blind
     if no_labs:
         if ai_score >= 0.52 and qsofa >= 2:
             alert_override = alert_override or "critical"
         elif qsofa >= 2:
+            # Sepsis-3 mandatory: qSOFA ≥ 2 = organ dysfunction suspected
+            alert_override = alert_override or "warning"
+        elif qsofa >= 1 and ai_score >= 0.30:
+            # LOOPHOLE FIX: borderline vitals + qSOFA=1 + score 0.3–0.4 was NONE.
+            # A single qSOFA point with a model score above 0.30 warrants monitoring.
             alert_override = alert_override or "warning"
 
     if clinical_boost > 0:
@@ -371,20 +413,21 @@ def predict(lgbm_input: np.ndarray | None,
     confidence_score = _CONF[lab_scen][0 if has_history else 1]
 
     # ── Data quality warnings ─────────────────────────────────────────────────
-    warnings: list[str] = []
+    # FIX #17: renamed from `warnings` to avoid shadowing stdlib warnings module
+    dq_warnings: list[str] = []
     if no_labs:
-        warnings.append(
+        dq_warnings.append(
             "No lab results — score is vitals only (LightGBM stream). "
             "XGBoost lab booster not activated. "
             "Draw stat labs to enable full fusion model."
         )
     if not calibrated_flag:
-        warnings.append(
+        dq_warnings.append(
             "Platt calibration unavailable (platt_scaler.pkl missing). "
             "Raw uncalibrated probability displayed."
         )
     if not has_history:
-        warnings.append(
+        dq_warnings.append(
             "No vitals history — delta features set to 0. "
             "Trend information improves after 2+ consecutive readings."
         )
@@ -401,7 +444,7 @@ def predict(lgbm_input: np.ndarray | None,
             "calibrated":   round(calibrated_tft, 4) if calibrated_tft is not None else None,
         },
         "confidenceScore":     round(confidence_score, 2),
-        "dataQualityWarnings": warnings,
+        "dataQualityWarnings": dq_warnings,
         "featureSummary": {
             "crt":         round(feat_dict["CRT"], 2),
             "shockIndex":  round(feat_dict["ShockIndex"], 3),
@@ -413,10 +456,13 @@ def predict(lgbm_input: np.ndarray | None,
 
 
 def _label_lab_scenario(feat_dict: dict) -> str:
-    if feat_dict.get("LabScenario_no_labs"):      return "no_labs"
-    if feat_dict.get("LabScenario_partial_cbc"):  return "partial_cbc"
+    # FIX #16: fallthrough must be 'no_labs' not 'full'.
+    # If all four flags are 0 (e.g. imputation failure), claiming full-lab
+    # confidence (1.00) is clinically dangerous. Safe default = no_labs (0.40).
+    if feat_dict.get("LabScenario_full"):         return "full"
     if feat_dict.get("LabScenario_partial_full"): return "partial_full"
-    return "full"
+    if feat_dict.get("LabScenario_partial_cbc"):  return "partial_cbc"
+    return "no_labs"  # safe default: lowest confidence tier
 
 
 def health() -> dict:

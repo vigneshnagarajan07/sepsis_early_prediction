@@ -164,7 +164,8 @@ export default function SepsisDashboard() {
     alertLevel: 'none' | 'warning' | 'critical';
     attentionWeights: number[];
     modelScores: Record<string, number | null>; // FIX #22: values can be null (e.g. xgb_lab when no labs)
-    featureSummary: { crt: number; shockIndex: number; labScenario: string };
+    featureSummary: { crt: number; crtSynthetic?: boolean; shockIndex: number; labScenario: string; hasLabs?: boolean; calibrated?: boolean; xgbEligible?: boolean };
+    // DEMO: data is 225× compressed (15-min clinical readings → 4s demo playback)
     shapDrivers: Array<{ feature: string; value: number; shap: number }>;
     confidenceScore: number;
     dataQualityWarnings: string[];
@@ -239,17 +240,20 @@ export default function SepsisDashboard() {
   // Loads patient list on mount
   useEffect(() => {
     fetch('/api/patients')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => setPatients(d.patients || []))
-      .catch(() => {});
+      .catch(err => {
+        console.error('Failed to load patient list:', err);
+        setAnalysisError('Backend unavailable — patient files could not be loaded.');
+      });
   }, []);
 
   // Apply a tick response — updates ALL state from backend file reading
   const applyTickResponse = useCallback((data: any) => {
     if (!data || data.done) return;
 
-    // Overwrite vitals from file
-    if (data.vitals) {
+    // FIX F2: optional chaining + shape guard
+    if (data?.vitals && typeof data.vitals.hr === "number") {
       setVitals({
         hr:          data.vitals.hr,
         map:         data.vitals.map,
@@ -262,8 +266,7 @@ export default function SepsisDashboard() {
       });
     }
 
-    // Overwrite labs from file
-    if (data.labs) {
+    if (data?.labs && typeof data.labs === "object") {
       setLabs(prev => ({
         ...prev,
         ...Object.fromEntries(
@@ -272,8 +275,7 @@ export default function SepsisDashboard() {
       }));
     }
 
-    // Update vitals history from backend-computed window
-    if (data.vitals) {
+    if (data?.vitals) {
       setVitalsHistory(prev => {
         const next = { ...prev };
         (Object.keys(data.vitals) as (keyof Vitals)[]).forEach(k => {
@@ -285,11 +287,9 @@ export default function SepsisDashboard() {
       });
     }
 
-    // Set prediction result directly
-    if (data.aiScore !== undefined) setResult(data);
+    if (data?.aiScore !== undefined) setResult(data);
 
-    // Update progress
-    if (data._meta) {
+    if (data?._meta) {
       setFeedProgress({
         current: data._meta.reading_index + 1,
         total:   data._meta.total_readings,
@@ -332,7 +332,7 @@ export default function SepsisDashboard() {
 
       feedTimerRef.current = setInterval(async () => {
         try {
-          const tickRes = await fetch('/api/session/tick');
+          const tickRes = await fetch('/api/session/tick', { method: 'POST' });
           const tickData = await tickRes.json();
           if (tickData.done) {
             stopFileFeed();
@@ -398,8 +398,6 @@ export default function SepsisDashboard() {
   // is NOT recreated every time runAnalysis changes (dep churn).
   // The interval is created once when simulation starts and reads the
   // current runAnalysis via ref on every tick.
-  const runAnalysisRef = useRef(runAnalysis);
-  useEffect(() => { runAnalysisRef.current = runAnalysis; }, [runAnalysis]);
 
   // 1. Data Drift (Vitals Only) + periodic analysis
   useEffect(() => {
@@ -665,7 +663,7 @@ export default function SepsisDashboard() {
               }`}
             >
               {isSimulating ? <EyeOff size={14} /> : <Eye size={14} />}
-              {isSimulating ? 'Stop Live Feed' : 'Start Live Feed'}
+              {isFileFed ? 'Stop File Feed' : isSimulating ? 'Stop Live Feed' : 'Start Live Feed'}
             </button>
             <button
               onClick={() => { setIsSimulating(false); setShowPatientPicker(true); }}

@@ -215,6 +215,10 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
     shock_index = hr / max(systolic_bp, 1.0)
     crt         = _crt(hr, map_, shock_index)
     hrv_sdnn    = _hrv_sdnn(hr)
+    # HIGH M1: CRT is approximated from MAP+ShockIndex (not measured bedside).
+    # It is the #1 SHAP feature. Flag it so the response can warn clinicians.
+    # When real bedside CRT is available, add it as a direct payload field.
+    crt_is_synthetic = True  # always True until hardware CRT is wired in
 
     # qSOFA (0–3): RR ≥22 | GCS <15 | SBP ≤100
     # SBP threshold is ≤100 per Seymour et al. 2016 (NOT <90 septic-shock threshold)
@@ -352,6 +356,7 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
         "TFT_Score": 0.0,
 
         # Non-model features: stored for SHAP drivers / clinical-boost rules
+        "CRT_Synthetic":  True,   # M1: CRT is approximated, not measured
         "Oliguria":       oliguria,
         "UrineOutput":    urine_out,
         "MalariaEndemic": malaria_endemic,

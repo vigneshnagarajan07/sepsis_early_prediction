@@ -228,3 +228,82 @@ if __name__ == "__main__":
         run_unit_tests()
     else:
         run_integration_tests()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Session pipeline integration test (server must be running)
+# python test_cases.py --session
+# ─────────────────────────────────────────────────────────────────────────────
+
+def run_session_tests() -> None:
+    """
+    Test the full file-feed pipeline end-to-end.
+    Requires backend running at http://127.0.0.1:8000
+    """
+    import urllib.request
+    BASE = "http://127.0.0.1:8000"
+
+    def get(path):
+        with urllib.request.urlopen(f"{BASE}{path}", timeout=5) as r:
+            return json.loads(r.read())
+
+    def post(path, body=None):
+        data = json.dumps(body or {}).encode()
+        req  = urllib.request.Request(f"{BASE}{path}", data=data,
+               headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read())
+
+    print(f"\n{SEP}\n  Session pipeline tests\n{SEP}")
+
+    # 1. List patients
+    patients = get("/api/patients")["patients"]
+    print(f"  Patients available: {len(patients)}")
+    assert len(patients) >= 1, "No patient files found"
+
+    # 2. Start session
+    r = post("/api/session/start", {"patient_id": patients[0]["patient_id"]})
+    assert "aiScore" in r, f"No aiScore in start response: {r.keys()}"
+    assert "_meta" in r,   "No _meta in start response"
+    assert r["_meta"]["reading_index"] == 0
+    print(f"  Start: aiScore={r['aiScore']}  label={r['_meta']['label']}")
+
+    # 3. Tick twice
+    for i in range(2):
+        t = post("/api/session/tick")
+        assert "aiScore" in t
+        assert t["_meta"]["reading_index"] == i + 1
+        print(f"  Tick {i+1}: aiScore={t['aiScore']:.4f}  "
+              f"alert={t['alertLevel']}  idx={t['_meta']['reading_index']}")
+
+    # 4. Status
+    s = get("/api/session/status")
+    assert s["active"] and s["current_index"] == 3
+    print(f"  Status: active={s['active']}  index={s['current_index']}/{s['total_readings']}")
+
+    # 5. Security: path traversal attempt
+    try:
+        post("/api/session/start", {"patient_id": "../../etc/passwd"})
+        print("  FAIL: path traversal should have been rejected")
+    except Exception as e:
+        if "422" in str(e) or "400" in str(e) or "Invalid" in str(e):
+            print("  ✓ Path traversal correctly rejected")
+        else:
+            print(f"  ? Traversal rejected with: {e}")
+
+    # 6. Stop
+    post("/api/session/stop")
+    s2 = get("/api/session/status")
+    assert not s2["active"], "Session not cleared after stop"
+    print(f"  ✓ Session stopped")
+
+    print(f"\n  Session pipeline tests PASSED\n")
+
+
+if __name__ == "__main__":
+    if "--session" in sys.argv:
+        run_session_tests()
+    elif "--unit" in sys.argv:
+        run_unit_tests()
+    else:
+        run_integration_tests()

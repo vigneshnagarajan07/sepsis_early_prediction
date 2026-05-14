@@ -30,6 +30,10 @@ log = logging.getLogger("sepsis-api")
 # ─────────────────────────────────────────────────────────────────────────────
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# SECURITY S5: Set MODEL_DIR env var to a path OUTSIDE the web root in production.
+# Default (same dir as main.py) is fine for dev but exposes weights if
+# path traversal in patient_id is not stopped at the patient_stream layer.
+# The path traversal fix in patient_stream.py is the primary defence.
 MODEL_DIR   = os.getenv("MODEL_DIR", _SCRIPT_DIR)
 
 LGBM_PATH     = os.path.join(MODEL_DIR, "lgbm_stream1.txt")
@@ -392,14 +396,23 @@ def predict(lgbm_input: np.ndarray | None,
         thresh_red   = thresh_red   - 0.05
         thresh_amber = thresh_amber - 0.05
 
-    if alert_override:
-        alert = alert_override
-    elif ai_score >= thresh_red and qsofa >= 2:
-        alert = "critical"
+    # FIX M3: compute threshold-based alert AND override, take the more severe.
+    # Prevents alert_override from LOWERING an alert that thresholds would raise.
+    _ALERT_RANK = {"none": 0, "warning": 1, "critical": 2}
+    if ai_score >= thresh_red and qsofa >= 2:
+        _threshold_alert = "critical"
     elif ai_score >= thresh_amber or qsofa >= 2:
-        alert = "warning"
+        _threshold_alert = "warning"
     else:
-        alert = "none"
+        _threshold_alert = "none"
+
+    if alert_override:
+        # Take whichever is MORE severe — override never suppresses a threshold
+        alert = (alert_override
+                 if _ALERT_RANK.get(alert_override, 0) >= _ALERT_RANK.get(_threshold_alert, 0)
+                 else _threshold_alert)
+    else:
+        alert = _threshold_alert
 
     # ── Confidence score ──────────────────────────────────────────────────────
     lab_scen    = _label_lab_scenario(feat_dict)
@@ -428,8 +441,10 @@ def predict(lgbm_input: np.ndarray | None,
         )
     if not has_history:
         dq_warnings.append(
-            "No vitals history — delta features set to 0. "
-            "Trend information improves after 2+ consecutive readings."
+            "First reading — all 3-hour delta features are 0 (no prior data). "
+            "The score is conservative: rising trends in HR, WBC, Lactate, "
+            "Creatinine are invisible until reading 2+. "
+            "Re-evaluate after the next reading."
         )
 
     return {
@@ -446,11 +461,13 @@ def predict(lgbm_input: np.ndarray | None,
         "confidenceScore":     round(confidence_score, 2),
         "dataQualityWarnings": dq_warnings,
         "featureSummary": {
-            "crt":         round(feat_dict["CRT"], 2),
-            "shockIndex":  round(feat_dict["ShockIndex"], 3),
-            "labScenario": lab_scen,
-            "hasLabs":     has_labs,
-            "calibrated":  calibrated_flag,
+            "crt":            round(feat_dict["CRT"], 2),
+            "crtSynthetic":   feat_dict.get("CRT_Synthetic", True),
+            "shockIndex":     round(feat_dict["ShockIndex"], 3),
+            "labScenario":    lab_scen,
+            "hasLabs":        has_labs,
+            "calibrated":     calibrated_flag,
+            "xgbEligible":    bool(xgb_score != tft),  # did XGB actually run?
         },
     }
 

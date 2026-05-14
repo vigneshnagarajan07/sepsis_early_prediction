@@ -8,15 +8,35 @@ import time
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from typing import Annotated, Optional
 from pydantic import BaseModel, Field, model_validator
 
 import features as feat_eng
 import models   as model_eng
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Simple in-process rate limiter (token bucket, per-IP)
+# For production: replace with slowapi or an nginx limit_req_zone
+_rate_store: dict[str, list[float]] = defaultdict(list)
+_RATE_WINDOW = 60.0   # seconds
+_RATE_LIMIT  = int(os.getenv("PREDICT_RATE_LIMIT", "120"))  # reqs / window
+
+def _check_rate(client_ip: str) -> None:
+    """Raise HTTP 429 if client exceeds PREDICT_RATE_LIMIT requests/minute."""
+    now = time.monotonic()
+    bucket = _rate_store[client_ip]
+    # Evict timestamps outside the window
+    _rate_store[client_ip] = [t for t in bucket if now - t < _RATE_WINDOW]
+    if len(_rate_store[client_ip]) >= _RATE_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded: max {_RATE_LIMIT} requests per minute."
+        )
+    _rate_store[client_ip].append(now)
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger("sepsis-api")
 
@@ -53,15 +73,19 @@ class Vitals(BaseModel):
             )
         return self
 
+# MAX_HISTORY: limit list length to prevent memory/CPU exhaustion attacks
+_MAX_HIST = 20
+
 class VitalsHistory(BaseModel):
-    hr:          list[float] = []
-    map:         list[float] = []
-    resp:        list[float] = []
-    temp:        list[float] = []
-    o2sat:       list[float] = []
-    urineOutput: list[float] = []
-    gcs:         list[float] = []
-    systolicBp:  list[float] = []
+    # FIX S6: max_length=_MAX_HIST prevents giant array DoS
+    hr:          list[float] = Field(default=[], max_length=_MAX_HIST)
+    map:         list[float] = Field(default=[], max_length=_MAX_HIST)
+    resp:        list[float] = Field(default=[], max_length=_MAX_HIST)
+    temp:        list[float] = Field(default=[], max_length=_MAX_HIST)
+    o2sat:       list[float] = Field(default=[], max_length=_MAX_HIST)
+    urineOutput: list[float] = Field(default=[], max_length=_MAX_HIST)
+    gcs:         list[float] = Field(default=[], max_length=_MAX_HIST)
+    systolicBp:  list[float] = Field(default=[], max_length=_MAX_HIST)
 
 class Labs(BaseModel):
     lactate:   LabEntry = LabEntry()
@@ -192,7 +216,7 @@ async def health():
 
 
 @app.post("/api/predict")
-async def predict(req: PredictRequest):
+async def predict(req: PredictRequest, request: Request):
     """
     Main prediction endpoint.
     Returns: aiScore, qsofaScore, alertLevel, attentionWeights,
@@ -203,6 +227,7 @@ async def predict(req: PredictRequest):
       • ValueError   (bad input range)  → 422 Unprocessable Entity
       • Anything else                   → 500 with logged traceback
     """
+    _check_rate(request.client.host if request.client else "unknown")
     prev_labs_raw = req.previousLabs.model_dump()
     payload = {
         "vitals":          req.vitals.model_dump(),
@@ -272,6 +297,19 @@ async def feature_names():
 
 import patient_stream as ps
 
+# ── Optional API key auth (set SESSION_API_KEY env var to enable) ───────────
+_SESSION_KEY = os.getenv("SESSION_API_KEY", "")  # empty = no auth required
+
+def _check_session_auth(x_api_key: Annotated[Optional[str], Header()] = None) -> None:
+    """Verify session API key when SESSION_API_KEY env var is set."""
+    if not _SESSION_KEY:
+        return  # auth disabled — demo/dev mode
+    if x_api_key != _SESSION_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing X-API-Key header."
+        )
+
 class SessionStartRequest(BaseModel):
     patient_id: str
 
@@ -289,7 +327,8 @@ async def list_patients():
 
 
 @app.post("/api/session/start")
-async def session_start(req: SessionStartRequest):
+async def session_start(req: SessionStartRequest, request: Request,
+                        _auth: None = Depends(_check_session_auth)):
     """
     Load a patient file and return the first reading + prediction.
     Overwrites any existing active session.
@@ -297,6 +336,7 @@ async def session_start(req: SessionStartRequest):
     Body: { "patient_id": "DEMO_SEPSIS_NOLABS" }
     Returns: { vitals, labs, demographics, prediction, _meta }
     """
+    _check_rate(request.client.host if request.client else "unknown")
     try:
         payload = ps.start_session(req.patient_id)
         return await _run_prediction_on_payload(payload)
@@ -307,8 +347,9 @@ async def session_start(req: SessionStartRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/session/tick")
-async def session_tick():
+@app.post("/api/session/tick")
+async def session_tick(request: Request,
+                       _auth: None = Depends(_check_session_auth)):
     """
     Advance the session by one reading and return vitals + prediction.
     Called by the frontend every `interval_minutes` seconds during playback.
@@ -339,7 +380,7 @@ async def session_status():
 
 
 @app.post("/api/session/stop")
-async def session_stop():
+async def session_stop(_auth: None = Depends(_check_session_auth)):
     """Stop the active session and clear server-side state."""
     ps.stop_session()
     return {"stopped": True}

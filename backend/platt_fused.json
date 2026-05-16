@@ -1,0 +1,12 @@
+{
+  "coef": [
+    [
+      9.115756681174991
+    ]
+  ],
+  "intercept": [
+    -4.717369728150375
+  ],
+  "sklearn_version": "1.6.1",
+  "fitted_on": "fused_validation_score"
+}

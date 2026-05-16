@@ -159,21 +159,36 @@ export default function SepsisDashboard() {
   const [timeRange, setTimeRange] = useState<'6h' | '12h' | '24h'>('6h');
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [result, setResult] = useState<{
-    aiScore: number;
+    // Core prediction
+    aiScore: number | null;   // null when sensor detached
     qsofaScore: number;
-    alertLevel: 'none' | 'warning' | 'critical';
-    attentionWeights: number[];
-    modelScores: Record<string, number | null>; // FIX #22: values can be null (e.g. xgb_lab when no labs)
-    featureSummary: { crt: number; crtSynthetic?: boolean; shockIndex: number; labScenario: string; hasLabs?: boolean; calibrated?: boolean; xgbEligible?: boolean };
-    // DEMO: data is 225× compressed (15-min clinical readings → 4s demo playback)
-    shapDrivers: Array<{ feature: string; value: number; shap: number }>;
+    alertLevel: 'none' | 'warning' | 'critical' | 'sensor_error';
+    qsofaComponents?: { rr_ge22: number; gcs_lt15: number; sbp_le100: number };
+    // Model internals
+    monitoringUrgencyWeights: number[];   // renamed from attentionWeights
+    modelScores: Record<string, number | null>;
+    featureSummary: {
+      crt: number; crtSynthetic?: boolean;
+      shockIndex: number;
+      hasLabs?: boolean; nLabsDrawn?: number;
+      xgbActive?: boolean; calibrated?: boolean; fusedCalibrated?: boolean;
+    };
+    // Risk / explainability  (heuristic, NOT TreeSHAP)
+    riskFactors: Array<{ feature: string; value: number; influence: number }>;
+    // Tropical mimic detection
+    mimicInfo?: { is_mimic: boolean; mimic_type: string; suppression: number };
+    // Confidence
     confidenceScore: number;
     dataQualityWarnings: string[];
+    // Delta trends
     deltaInfo?: {
-      sourceReadings: number; intervalSec: number;
+      sourceReadings: number; intervalSec: number; missingHistory?: boolean;
       deltaHR: number; deltaMAP: number; deltaResp: number; deltaTemp: number;
       deltaLactate: number; deltaCreatinine: number;
+      deltaWBC?: number; deltaPlatelets?: number;
     };
+    // DEMO: 225× compressed (15-min clinical readings → 4s demo playback)
+    _meta?: Record<string, unknown>;
   } | null>(null);
 
   // Previous lab draw — sent to backend to compute Delta_3h_Lactate etc.
@@ -655,14 +670,14 @@ export default function SepsisDashboard() {
             </div>
             
             <button 
-              onClick={() => setIsSimulating(!isSimulating)}
+              onClick={() => isFileFed ? stopFileFeed() : setIsSimulating(!isSimulating)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wider transition-all border ${
-                isSimulating 
+                isSimulating || isFileFed
                   ? 'bg-brand-danger text-white border-brand-danger hover:bg-brand-danger/90' 
                   : 'bg-white text-brand-primary border-brand-primary hover:bg-brand-primary/10'
               }`}
             >
-              {isSimulating ? <EyeOff size={14} /> : <Eye size={14} />}
+              {isSimulating || isFileFed ? <EyeOff size={14} /> : <Eye size={14} />}
               {isFileFed ? 'Stop File Feed' : isSimulating ? 'Stop Live Feed' : 'Start Live Feed'}
             </button>
             <button
@@ -871,6 +886,12 @@ export default function SepsisDashboard() {
                         {result.dataQualityWarnings.map((w, i) => (
                           <p key={i} className="text-[12px] text-amber-800 leading-snug">{w}</p>
                         ))}
+                        {/* Tropical mimic banner */}
+                        {result.mimicInfo?.is_mimic && (
+                          <div className="mt-1 px-3 py-2 bg-teal-50 border border-teal-300 rounded text-[11px] text-teal-800">
+                            🌴 <strong>Tropical mimic detected</strong> ({result.mimicInfo.mimic_type}) — sepsis score suppressed by {Math.round((1 - result.mimicInfo.suppression) * 100)}%. Treat per tropical disease protocol.
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -890,7 +911,7 @@ export default function SepsisDashboard() {
                         result.alertLevel === 'warning' ? 'text-brand-warning' :
                         'text-brand-success'
                       }`}>
-                        {result.aiScore.toFixed(2)}
+                        {result.aiScore != null ? result.aiScore.toFixed(2) : '—'}
                       </div>
                       <div className={`text-[10px] font-bold uppercase tracking-widest ${
                         result.alertLevel === 'critical' ? 'text-brand-danger' :
@@ -910,6 +931,13 @@ export default function SepsisDashboard() {
                         'text-brand-muted'
                       }`}>
                         {result.qsofaScore}<span className="text-xl opacity-40">/3</span>
+                      {result.qsofaComponents && (
+                        <div className="flex gap-1 mt-1">
+                          {[["RR",result.qsofaComponents.rr_ge22],["GCS",result.qsofaComponents.gcs_lt15],["SBP",result.qsofaComponents.sbp_le100]].map(([k,v])=>(
+                            <span key={String(k)} className={`text-[9px] font-bold px-1 py-0.5 rounded ${v ? "bg-brand-danger text-white" : "bg-gray-100 text-brand-muted"}`}>{String(k)}</span>
+                          ))}
+                        </div>
+                      )}
                       </div>
                       <div className={`text-[10px] font-bold uppercase tracking-widest ${
                         result.alertLevel === 'critical' ? 'text-brand-danger' :
@@ -929,10 +957,12 @@ export default function SepsisDashboard() {
                         'Patient Baseline Stable'}
                       </div>
                       <div className="text-[12px] opacity-90 leading-tight">
-                        {result.alertLevel === 'critical' ? 'AI Model and Clinical qSOFA both confirm high risk. Immediate clinical intervention and broad-spectrum antibiotics recommended per protocol.' :
-                        result.alertLevel === 'warning' ? 'High AI risk detected despite low clinical score. Observe for potential physiological compensation and monitoring.' :
-                        'Patient risk markers remain within baseline parameters. Continue routine monitoring per unit protocol.'}
+                        {result.alertLevel === 'sensor_error' ? 'Wearable sensor detached — reattach to resume monitoring.' :
+                        result.alertLevel === 'critical' ? 'AI and qSOFA both confirm high risk. Immediate intervention required.' :
+                        result.alertLevel === 'warning' ? 'Elevated risk — observe closely and consider further evaluation.' :
+                        'Vitals within baseline. Continue routine monitoring.'}
                       </div>
+                    </div>
                     </div>
                     {/* Confidence meter row */}
                     {result.confidenceScore !== undefined && (
@@ -960,7 +990,7 @@ export default function SepsisDashboard() {
               {/* Section 4: Clinical Explainability */}
               <section className="bg-white rounded-lg p-4 border border-brand-border shadow-[0_1px_3px_rgba(0,0,0,0.05)] space-y-4 shadow-sm">
                 <div className="flex items-center justify-between border-b border-brand-border pb-2">
-                  <h3 className="text-[13px] font-bold">AI Diagnostic Reasoning (SHAP & Attention)</h3>
+                  <h3 className="text-[13px] font-bold">AI Diagnostic Reasoning</h3>
                   <div className="flex items-center gap-1.5 px-2 py-0.5 bg-[#f8fafc] border border-brand-border rounded text-[10px] text-brand-muted font-bold">
                     <History size={10} />
                     Lookback: 6 Hours
@@ -970,21 +1000,21 @@ export default function SepsisDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-brand-muted flex items-center justify-between">
-                      <span>Feature Importance (SHAP Value)</span>
-                      <span className="text-[9px] font-mono opacity-50">Local Influence</span>
+                      <span>Clinical Risk Factors</span>
+                      <span className="text-[9px] font-mono opacity-50">Heuristic — not TreeSHAP</span>
                     </div>
                     <div className="bg-[#f8fafc] border border-brand-border rounded p-4 text-[11px] text-brand-muted h-[160px] flex flex-col items-center justify-center relative overflow-hidden">
                       <div className="absolute top-2 left-2 font-mono text-[8px] opacity-30 select-none">SHA_V1_INF</div>
-                      {result?.shapDrivers?.length ? (
+                      {result?.riskFactors?.length ? (
                         <div className="flex flex-col gap-2 w-full max-w-[240px]">
-                          {result.shapDrivers.slice(0, 4).map(d => (
-                            <ShapBar
-                              key={d.feature}
-                              label={d.feature.replace(/_/g, ' ')}
-                              value={// FIX #27: width capped at 100 — shap*100 with reasonable scale
-                        Math.min(100, Math.round(Math.abs(d.shap) * 150))}
-                              color={d.shap > 0 ? 'var(--color-brand-danger)' : 'var(--color-brand-success)'}
-                            />
+                          {result.riskFactors.slice(0, 4).map(d => (
+                            <span key={d.feature}>
+                              <ShapBar
+                                label={d.feature.replace(/_/g, ' ')}
+                                value={Math.min(100, Math.round(Math.abs(d.influence) * 150))}
+                                color={d.influence > 0 ? 'var(--color-brand-danger)' : 'var(--color-brand-success)'}
+                              />
+                            </span>
                           ))}
                         </div>
                       ) : (
@@ -993,8 +1023,8 @@ export default function SepsisDashboard() {
                         </div>
                       )}
                       <div className="mt-auto pt-2 text-[9px] font-medium italic">
-                        {result?.shapDrivers?.length
-                          ? `Top driver: ${result.shapDrivers[0]?.feature.replace(/_/g, ' ')}`
+                        {result?.riskFactors?.length
+                          ? `Top driver: ${result.riskFactors[0]?.feature.replace(/_/g, ' ')}`
                           : 'No analysis yet'}
                       </div>
                     </div>
@@ -1002,13 +1032,13 @@ export default function SepsisDashboard() {
 
                   <div className="space-y-1.5">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-brand-muted flex items-center justify-between">
-                      <span>Temporal Attention Heatmap</span>
-                      <span className="text-[9px] font-mono opacity-50">TFT Sequence Analysis</span>
+                      <span>Monitoring Urgency Heatmap</span>
+                      <span className="text-[9px] font-mono opacity-50">Urgency weights — not neural attention</span>
                     </div>
                     <div className="bg-[#f8fafc] border border-brand-border rounded p-3 h-[160px] flex flex-col items-center justify-center relative">
                       <div className="absolute top-2 left-2 font-mono text-[8px] opacity-30 select-none">TFT_ATT_SYNC</div>
                       {result ? (
-                        <AttentionHeatmap weights={result.attentionWeights} />
+                        <AttentionHeatmap weights={result.monitoringUrgencyWeights ?? []} />
                       ) : (
                         <div className="flex flex-col items-center gap-2 opacity-50">
                           <TrendingUp size={24} className="text-brand-muted" />
@@ -1348,7 +1378,7 @@ function VitalInput({ label, value, history = [], min, max, step = 1, onChange }
   const isPositive = delta > 0;
   const absDelta = Math.abs(delta).toFixed(step < 1 ? 1 : 0);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: { target: HTMLInputElement }) => {
     const raw = e.target.value;
     setInputStr(raw);
     const parsed = parseFloat(raw);
@@ -1622,7 +1652,7 @@ function LabRow({
     ? 'border-orange-400 ring-1 ring-orange-100'
     : 'border-emerald-400';
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: { target: HTMLInputElement }) => {
     const raw = e.target.value;
     setInputStr(raw);
     const parsed = parseFloat(raw);

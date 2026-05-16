@@ -1,23 +1,17 @@
 """
-models.py  –  Sepsis AI · Model Loading & Inference
+models.py  —  Sepsis AI · Model Loading & Inference  (v5.2 Simplified)
+========================================================================
 
-Architecture matches the training notebook exactly:
-  Stream 1 : LightGBM (wearable vitals)          → TFT_Score
-  Stream 2 : XGBoost  (lab booster, has_lab only) → lab_score
-  Fusion   : no_labs → 100% LGBM
-             has_labs → 40% LGBM + 60% XGB        (training notebook weights)
-  Calibrate: Platt scaler fitted on val TFT_Score → final probability
-  Alert    : RED ≥ 0.55, AMBER ≥ 0.40             (training notebook thresholds)
+SIMPLIFICATION: Binary lab classification only.
+  has_labs = ANY lab performed (1+ labs) → XGB activates (if >= 2 labs)
+  no_labs  = ZERO labs performed → LGBM only
 
-Files required in MODEL_DIR:
-  lgbm_stream1.txt      LightGBM wearable model
-  xgb_booster.json      XGBoost lab booster
-  platt_scaler.pkl      sklearn LogisticRegression (Platt scaler)
-  feature_registry.json {"lgbm_vital_features": [...], "xgb_lab_booster_cols": [...]}
-  inference_config.json (optional override for weights/thresholds)
+The 4-tier LabScenario logic is REMOVED. Single binary flag used instead.
 """
 
-import os, json, logging
+import os
+import json
+import logging
 import numpy as np
 import lightgbm as lgb
 import xgboost as xgb
@@ -25,60 +19,42 @@ import joblib
 
 log = logging.getLogger("sepsis-api")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Paths
-# ─────────────────────────────────────────────────────────────────────────────
-
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# SECURITY S5: Set MODEL_DIR env var to a path OUTSIDE the web root in production.
-# Default (same dir as main.py) is fine for dev but exposes weights if
-# path traversal in patient_id is not stopped at the patient_stream layer.
-# The path traversal fix in patient_stream.py is the primary defence.
-MODEL_DIR   = os.getenv("MODEL_DIR", _SCRIPT_DIR)
+MODEL_DIR = os.getenv("MODEL_DIR", _SCRIPT_DIR)
 
-LGBM_PATH     = os.path.join(MODEL_DIR, "lgbm_stream1.txt")
-XGB_PATH      = os.path.join(MODEL_DIR, "xgb_booster.json")
-PLATT_PATH    = os.path.join(MODEL_DIR, "platt_scaler.pkl")
+LGBM_PATH = os.path.join(MODEL_DIR, "lgbm_stream1.txt")
+XGB_PATH = os.path.join(MODEL_DIR, "xgb_booster.json")
+PLATT_PATH = os.path.join(MODEL_DIR, "platt_scaler.pkl")
+PLATT_FUSED_PATH = os.path.join(MODEL_DIR, "platt_fused.json")
 REGISTRY_PATH = os.path.join(MODEL_DIR, "feature_registry.json")
-CONFIG_PATH   = os.path.join(MODEL_DIR, "inference_config.json")
+CONFIG_PATH = os.path.join(MODEL_DIR, "inference_config.json")
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Global model singletons
-# ─────────────────────────────────────────────────────────────────────────────
-
-_lgbm_model   = None   # lgb.Booster
-_xgb_model    = None   # xgb.Booster  (loaded from XGBClassifier save)
-_platt        = None   # sklearn LogisticRegression
-_lgbm_feats   = []     # VITAL_FEAT list from training
-_xgb_feats    = []     # LAB_BOOSTER_COLS list from training
-_cfg          = {}     # inference_config.json contents
+_lgbm_model = None
+_xgb_model = None
+_platt = None
+_platt_fused = None
+_lgbm_feats = []
+_xgb_feats = []
+_cfg = {}
 
 
 def _load() -> None:
-    global _lgbm_model, _xgb_model, _platt, _lgbm_feats, _xgb_feats, _cfg
+    global _lgbm_model, _xgb_model, _platt, _platt_fused, _lgbm_feats, _xgb_feats, _cfg
 
-    # ── feature_registry.json ────────────────────────────────────────────────
-    # This is the ground-truth feature list saved by the training notebook.
-    # Without it, column order cannot be guaranteed.
     try:
         with open(REGISTRY_PATH) as f:
             reg = json.load(f)
         _lgbm_feats = reg["lgbm_vital_features"]
-        _xgb_feats  = reg["xgb_lab_booster_cols"]
-        log.info(f"[models] Feature registry: "
-                 f"LGBM={len(_lgbm_feats)} cols, XGB={len(_xgb_feats)} cols")
+        _xgb_feats = reg["xgb_lab_booster_cols"]
+        log.info(f"[models] Registry: LGBM={len(_lgbm_feats)} XGB={len(_xgb_feats)}")
     except FileNotFoundError:
-        log.warning(f"[models] feature_registry.json not found at {REGISTRY_PATH}. "
-                    "Feature column order cannot be validated. "
-                    "Run the training notebook patch cell and copy the file here.")
+        log.warning("[models] feature_registry.json not found")
     except Exception as e:
-        log.error(f"[models] feature_registry.json load error: {e}")
+        log.error(f"[models] registry load error: {e}")
 
-    # ── inference_config.json (optional) ─────────────────────────────────────
     _cfg = {
         "ensemble": {
-            "no_labs":  {"lgbm": 1.00, "xgb": 0.00},
+            "no_labs": {"lgbm": 1.00, "xgb": 0.00},
             "has_labs": {"lgbm": 0.40, "xgb": 0.60},
         },
         "alert_thresholds": {"red": 0.55, "amber": 0.40},
@@ -88,152 +64,132 @@ def _load() -> None:
             _cfg.update(json.load(f))
         log.info("[models] inference_config.json loaded")
     except FileNotFoundError:
-        log.info("[models] inference_config.json not found — using training defaults")
+        log.info("[models] inference_config.json absent — using defaults")
 
-    # ── LightGBM ─────────────────────────────────────────────────────────────
-    # FIX #14: capture full exception detail; set SEPSIS_STRICT_STARTUP=1
-    # to make the server refuse to start if LightGBM is unavailable
-    _strict = os.getenv("SEPSIS_STRICT_STARTUP", "0") == "1"
+    _strict = os.getenv("SEPSIS_STRICT_STARTUP", "1") == "1"
+
+    # LightGBM
     try:
         _lgbm_model = lgb.Booster(model_file=LGBM_PATH)
-
-        # Validate stored feature names match registry
         stored = _lgbm_model.feature_name()
         if _lgbm_feats and stored != _lgbm_feats:
-            log.warning(
-                f"[models] LightGBM stored {len(stored)} feature names "
-                f"but registry has {len(_lgbm_feats)} — possible mismatch!"
-            )
+            msg = f"LightGBM feature mismatch: {len(stored)} vs {len(_lgbm_feats)}"
+            if _strict:
+                raise RuntimeError(msg)
+            log.warning(f"[models] {msg}")
         elif _lgbm_feats:
-            log.info(f"[models] LightGBM feature names validated ({len(stored)})")
-
-        log.info(f"[models] LightGBM loaded ← {LGBM_PATH}")
+            log.info(f"[models] LightGBM validated ({len(stored)} features)")
+        log.info(f"[models] LightGBM loaded ({_lgbm_model.num_trees()} trees)")
+    except RuntimeError:
+        raise
     except Exception as e:
         log.error(f"[models] LightGBM load FAILED: {e}")
         if _strict:
-            raise RuntimeError(f"SEPSIS_STRICT_STARTUP=1 and LightGBM failed: {e}")
+            raise RuntimeError(f"LightGBM unavailable: {e}")
 
-    # ── XGBoost ──────────────────────────────────────────────────────────────
-    # The XGBClassifier was trained with .values (numpy) so xgb_booster.json
-    # has no stored feature names. We use raw numpy arrays at inference in
-    # the exact same column order as LAB_BOOSTER_COLS.
+    # XGBoost
     try:
         bst = xgb.Booster()
         bst.load_model(XGB_PATH)
         _xgb_model = bst
-
-        # Validate feature count
         if _xgb_feats:
             if bst.num_features() != len(_xgb_feats):
-                log.warning(
-                    f"[models] XGBoost expects {bst.num_features()} features "
-                    f"but registry has {len(_xgb_feats)} — COLUMN ORDER MISMATCH"
-                )
+                msg = f"XGB count mismatch: {bst.num_features()} vs {len(_xgb_feats)}"
+                if _strict:
+                    raise RuntimeError(msg)
+                log.warning(f"[models] {msg}")
             else:
-                log.info(f"[models] XGBoost feature count validated ({bst.num_features()})")
-
-        log.info(f"[models] XGBoost loaded ← {XGB_PATH}")
+                stored_names_attr = bst.attr('feature_names')
+                if stored_names_attr:
+                    stored_names = stored_names_attr.split(',')
+                    if stored_names != _xgb_feats:
+                        msg = f"XGB name/order mismatch"
+                        if _strict:
+                            raise RuntimeError(msg)
+                        log.warning(f"[models] {msg}")
+                    else:
+                        log.info("[models] XGB names+order validated")
+                else:
+                    log.info(f"[models] XGB count validated; names not stored")
+        log.info(f"[models] XGBoost loaded ({bst.num_boosted_rounds()} trees)")
+    except RuntimeError:
+        raise
     except Exception as e:
         log.error(f"[models] XGBoost load FAILED: {e}")
 
-    # ── Platt scaler ──────────────────────────────────────────────────────────
+    # Platt scalers
     try:
         _platt = joblib.load(PLATT_PATH)
-        # Check sklearn version compatibility
-        import sklearn as _sk
-        _sk_ver = tuple(int(x) for x in _sk.__version__.split(".")[:2])
-        if _sk_ver >= (1, 8):
-            log.warning(
-                f"[models] sklearn {_sk.__version__} — Platt scaler was saved with "
-                "sklearn 1.6.1. Minor version difference is usually safe but "
-                "re-fit platt_scaler.pkl with current sklearn to eliminate warning."
-            )
-        log.info(f"[models] Platt scaler loaded ← {PLATT_PATH}")
+        log.info("[models] Platt (LGBM) loaded")
+    except FileNotFoundError:
+        log.warning("[models] platt_scaler.pkl missing")
+    except Exception as e:
+        log.error(f"[models] Platt load FAILED: {e}")
+
+    try:
+        with open(PLATT_FUSED_PATH) as f:
+            _platt_fused = json.load(f)
+        log.info("[models] Fused Platt loaded")
     except FileNotFoundError:
         log.warning(
-            "[models] platt_scaler.pkl not found — calibration disabled. "
-            "Run the training notebook patch cell and copy platt_scaler.pkl here."
+            "[models] platt_fused.json missing — fused scores UNCALIBRATED. "
+            "Generate from validation-set fused scores."
         )
     except Exception as e:
-        log.error(f"[models] Platt scaler load FAILED: {e}")
+        log.error(f"[models] Fused Platt load FAILED: {e}")
 
 
 _load()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Feature vector builder — maps feat_dict to training-order numpy arrays
-# ─────────────────────────────────────────────────────────────────────────────
-
 def _lgbm_vec(feat_dict: dict) -> np.ndarray:
-    """
-    Build the LightGBM input vector using the feature list from feature_registry.json.
-    Falls back to the hardcoded list from features.py if registry is absent.
-    """
-    from features import LGBM_FEATURES as FALLBACK
-    cols = _lgbm_feats if _lgbm_feats else FALLBACK
+    from features import LGBM_FEATURES as FB
+    cols = _lgbm_feats if _lgbm_feats else FB
     return np.array([feat_dict.get(c, 0.0) for c in cols], dtype=np.float64)
 
 
-def _xgb_vec(feat_dict: dict, tft_score: float) -> np.ndarray:
-    """
-    Build the XGBoost input vector.
-    The first column MUST be TFT_Score (the LightGBM prediction) because
-    LAB_BOOSTER_COLS starts with ["TFT_Score", ...].
-    Uses raw numpy arrays — no column names — to match how XGBClassifier was trained.
-    """
-    from features import XGB_FEATURES as FALLBACK
-    cols = _xgb_feats if _xgb_feats else FALLBACK
+def _xgb_vec(feat_dict: dict, tft: float) -> np.ndarray:
+    from features import XGB_FEATURES as FB
+    cols = _xgb_feats if _xgb_feats else FB
+    aug = {**feat_dict, "TFT_Score": tft}
+    return np.array([aug.get(c, 0.0) for c in cols], dtype=np.float64)
 
-    # Inject TFT_Score into feat_dict so the lookup below finds it
-    augmented = {**feat_dict, "TFT_Score": tft_score}
-    return np.array([augmented.get(c, 0.0) for c in cols], dtype=np.float64)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Inference helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _predict_lgbm(vec: np.ndarray) -> float:
-    """Stream 1: LightGBM wearable prediction → TFT_Score."""
-    prob = _lgbm_model.predict(vec.reshape(1, -1))[0]
-    return 0.5 if np.isnan(prob) else float(np.clip(prob, 0.0, 1.0))
+    p = _lgbm_model.predict(vec.reshape(1, -1))[0]
+    return 0.5 if np.isnan(p) else float(np.clip(p, 0.0, 1.0))
 
 
 def _predict_xgb(vec: np.ndarray) -> float:
-    """
-    Stream 2: XGBoost lab booster.
-    Uses DMatrix with NO feature names (model was trained without them).
-    XGBoost will use column position order — must match LAB_BOOSTER_COLS exactly.
-
-    FIX #15: XGBClassifier.save_model() saves in Booster format.
-    xgb.Booster.predict() returns raw probabilities for binary:logistic objective
-    (same as XGBClassifier.predict_proba()[:,1]). No sigmoid needed.
-    Verified: bst.predict() on [0..1] input returns values in [0..1] range.
-    """
-    # No feature_names= argument → position-based inference
     dmat = xgb.DMatrix(vec.reshape(1, -1))
-    prob = _xgb_model.predict(dmat)[0]
-    # FIX #15: XGBClassifier with binary:logistic objective saves in Booster format.
-    # Booster.predict() returns sigmoid-transformed probabilities (not raw margin)
-    # when the model objective is binary:logistic — this is the correct behaviour.
-    # Assert output is in [0,1] to catch objective mismatch early.
-    if not (0.0 <= float(prob) <= 1.0):
-        log.warning(f"[models] XGB output {prob} is outside [0,1] — "
-                    "model may use non-logistic objective. Clipping.")
-    return 0.5 if np.isnan(prob) else float(np.clip(prob, 0.0, 1.0))
+    p = _xgb_model.predict(dmat)[0]
+    if not (0.0 <= float(p) <= 1.0):
+        log.warning(f"[models] XGB output {p} outside [0,1] — clipping")
+    return 0.5 if np.isnan(p) else float(np.clip(p, 0.0, 1.0))
 
 
-def _calibrate(tft_score: float) -> float | None:
-    """Apply Platt scaler to TFT_Score. Returns None if scaler unavailable."""
+def _calibrate_tft(tft: float) -> float | None:
     if _platt is None:
         return None
-    cal = _platt.predict_proba([[tft_score]])[0][1]
+    cal = _platt.predict_proba([[tft]])[0][1]
     return float(np.clip(cal, 0.01, 0.99))
 
 
-def _synthetic_attention(v: dict, prob: float) -> list[float]:
-    """6-step monitoring heatmap — rule-based surrogate, labelled as such."""
+def _calibrate_fused(raw_score: float) -> tuple[float, bool]:
+    if _platt_fused is None:
+        return raw_score, False
+    try:
+        coef = np.array(_platt_fused["coef"])
+        intercept = np.array(_platt_fused["intercept"])
+        z = raw_score * float(coef[0][0]) + float(intercept[0])
+        prob = 1.0 / (1.0 + np.exp(-z))
+        return float(np.clip(prob, 0.01, 0.99)), True
+    except Exception as e:
+        log.error(f"[models] Fused calibration failed: {e}")
+        return raw_score, False
+
+
+def _monitoring_urgency(v: dict, prob: float) -> list[float]:
     urgency = min(1.0, prob * 1.4)
     w = np.array([
         0.05 + 0.02 * (1 - urgency),
@@ -243,110 +199,122 @@ def _synthetic_attention(v: dict, prob: float) -> list[float]:
         0.18 + 0.10 * urgency,
         0.30 + 0.20 * urgency,
     ])
-    if float(v.get("resp", 18)) >= 20: w[2] += 0.06
-    if float(v.get("o2sat", 98)) < 95:  w[4] += 0.07
+    if float(v.get("resp", 18)) >= 20:
+        w[2] += 0.06
+    if float(v.get("o2sat", 98)) < 95:
+        w[4] += 0.07
     w /= w.sum()
     return [round(float(x), 4) for x in w]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Public: full prediction pipeline
-# ─────────────────────────────────────────────────────────────────────────────
+def _tropical_mimic(feat_dict: dict) -> dict:
+    dns1 = feat_dict.get("Dengue_NS1", 0)
+    mrdt = feat_dict.get("Malaria_RDT", 0)
+    plat = feat_dict.get("Platelets", 150)
+    wbc = feat_dict.get("WBC", 7.0)
+    lact = feat_dict.get("Lactate", 1.5)
+    qsf = feat_dict.get("qSOFA", 0)
+
+    if dns1 > 0 and plat < 80 and wbc < 4.5 and lact < 2.5 and qsf < 2:
+        return {"is_mimic": True, "mimic_type": "dengue", "suppression": 0.60}
+    if dns1 > 0 and plat < 150 and wbc < 5.0 and lact < 2.0:
+        return {"is_mimic": True, "mimic_type": "dengue_mild", "suppression": 0.80}
+    if mrdt > 0 and plat < 120 and lact < 2.5 and qsf < 2:
+        return {"is_mimic": True, "mimic_type": "malaria", "suppression": 0.75}
+    return {"is_mimic": False, "mimic_type": "none", "suppression": 1.0}
+
+
+def _deescalation_cap(feat_dict: dict) -> float | None:
+    urine = feat_dict.get("UrineOutput", 0.0)
+    temp = feat_dict.get("Temp", 38.0)
+    lact = feat_dict.get("Lactate", 2.0)
+    qsf = feat_dict.get("qSOFA", 0)
+    d_lac = feat_dict.get("Delta_3h_Lactate", 0)
+    d_cre = feat_dict.get("Delta_3h_Creatinine", 0)
+    d_hr = feat_dict.get("Delta_3h_HR", 0)
+
+    if (qsf == 0 and urine >= 1.0 and temp < 38.0 and lact < 2.0
+            and d_lac <= 0 and d_cre <= 0 and d_hr <= 0):
+        return 0.30
+    return None
+
 
 def predict(lgbm_input: np.ndarray | None,
             xgb_input: np.ndarray | None,
             feat_dict: dict,
             payload: dict) -> dict:
-    """
-    Full prediction pipeline matching the training notebook exactly.
 
-    Parameters
-    ----------
-    lgbm_input : pre-built numpy vector (from features.py) — used as fallback
-                 if feature_registry.json is absent; otherwise rebuilt here
-    xgb_input  : pre-built numpy vector — same fallback behaviour
-    feat_dict  : raw feature dict (all named features)
-    payload    : original request payload (for vitals context)
-
-    Raises RuntimeError if no models are loaded.
-    """
     if _lgbm_model is None:
         raise RuntimeError("LightGBM model not loaded")
 
     v = payload["vitals"]
 
-    # ── Stream 1: LightGBM ───────────────────────────────────────────────────
-    vec1  = _lgbm_vec(feat_dict) if _lgbm_feats else lgbm_input
-    tft   = _predict_lgbm(vec1)
+    # Stream 1: LightGBM
+    vec1 = _lgbm_vec(feat_dict) if _lgbm_feats else lgbm_input
+    tft = _predict_lgbm(vec1)
 
-    # ── Stream 2: XGBoost (only when labs are available) ─────────────────────
-    no_labs  = bool(feat_dict.get("LabScenario_no_labs", 1))
-    has_labs = not no_labs
+    # Binary lab classification (simplified)
+    n_labs = int(feat_dict.get("N_Labs_Drawn", 0))
+    has_labs = n_labs >= 1
+    no_labs = not has_labs
 
-    xgb_score = tft   # default: no-labs or no-registry → LGBM score only
-    # SAFETY GATE: only run XGB when:
-    #   (a) feature_registry.json is loaded (column order validated)
-    #   (b) at least 2 labs are drawn — with only 1 lab, 13/15 XGB lab
-    #       features are median-imputed and XGB adds no real signal
-    #       (empirically verified: Δfused ≈ 0.0001 for Lactate 1.5 vs 4.5)
-    n_labs_drawn = int(feat_dict.get('WBC_Tested',0) + feat_dict.get('Lactate_Tested',0) +
-                       feat_dict.get('Creatinine_Tested',0) + feat_dict.get('PCT_Tested',0) +
-                       feat_dict.get('Platelets_Tested',0) + feat_dict.get('Bilirubin_Tested',0))
-    xgb_min_labs = 2   # minimum drawn labs for XGB to be trusted
-    if has_labs and _xgb_model is not None and bool(_xgb_feats) and n_labs_drawn >= xgb_min_labs:
-        vec2      = _xgb_vec(feat_dict, tft)
+    # Stream 2: XGBoost (needs 2+ labs for reliable fusion)
+    xgb_score = tft
+    xgb_ran = False
+    XGB_MIN_LABS = 2
+
+    if (has_labs and _xgb_model is not None
+            and bool(_xgb_feats) and n_labs >= XGB_MIN_LABS):
+        vec2 = _xgb_vec(feat_dict, tft)
         xgb_score = _predict_xgb(vec2)
-    elif has_labs and n_labs_drawn == 1:
-        # 1 lab drawn: XGB is unreliable; keep LGBM score and flag in warnings
-        has_labs  = False   # treat as no-labs for fusion weights
-        no_labs   = True
+        xgb_ran = True
 
-    # ── Fusion (training notebook weights) ───────────────────────────────────
-    # no_labs  → 100% LightGBM + 0% XGBoost
-    # has_labs →  40% LightGBM + 60% XGBoost
+    # Fusion
     cfg_ens = _cfg.get("ensemble", {})
-    # Re-check has_labs here — it may have been reset to False above (1-lab case)
-    if has_labs and _xgb_model is not None and bool(_xgb_feats) and n_labs_drawn >= xgb_min_labs:
+    if xgb_ran:
         w_lgbm = cfg_ens.get("has_labs", {}).get("lgbm", 0.40)
-        w_xgb  = cfg_ens.get("has_labs", {}).get("xgb",  0.60)
+        w_xgb = cfg_ens.get("has_labs", {}).get("xgb", 0.60)
     else:
-        w_lgbm = 1.00
-        w_xgb  = 0.00
+        w_lgbm, w_xgb = 1.00, 0.00
 
-    raw_score = w_lgbm * tft + w_xgb * xgb_score
-    raw_score = float(np.clip(raw_score, 0.01, 0.99))
+    raw_score = float(np.clip(w_lgbm * tft + w_xgb * xgb_score, 0.01, 0.99))
 
-    # ── Platt calibration ─────────────────────────────────────────────────────
-    # Platt was fitted ONLY on TFT_Score (pure LGBM output):
-    #   platt.fit(val_df[["TFT_Score"]], val_df["SepsisLabel"])
-    # Passing raw_score (40% LGBM + 60% XGB) would be outside its training domain.
-    #
-    # ai_score = raw fused score — MUST match training evaluation:
-    #   auroc = roc_auc_score(y_true, final)  ← final is the raw fused score
-    # Alert thresholds 0.55 / 0.40 were set on this same raw fused score.
-    # calibrated_tft is stored separately for display / paper calibration curve.
-    calibrated_tft  = _calibrate(tft)   # Platt(LGBM output only) — display only
-    # NaN guard — if both models returned degenerate values, raw_score could be nan
-    ai_score        = 0.5 if np.isnan(raw_score) else raw_score
+    # Calibrate fused score
+    ai_score, is_fused_calibrated = _calibrate_fused(raw_score)
+    if not is_fused_calibrated:
+        ai_score = raw_score
+
+    # Platt on TFT (display only)
+    calibrated_tft = _calibrate_tft(tft)
     calibrated_flag = calibrated_tft is not None
 
-    # ── Clinical values ───────────────────────────────────────────────────────
+    # Clinical values
     qsofa = int(feat_dict.get("qSOFA", 0))
-    lact  = feat_dict.get("Lactate",    1.5)
-    plat  = feat_dict.get("Platelets",  230.0)
-    wbc   = feat_dict.get("WBC",        8.5)
-    oligo = feat_dict.get("Oliguria",   0)
-    urine = feat_dict.get("UrineOutput",0.8)
-    dns1  = feat_dict.get("Dengue_NS1", 0)
-    mrdt  = feat_dict.get("Malaria_RDT",0)
-    hr    = feat_dict.get("HR",         80.0)
-    temp  = feat_dict.get("Temp",       37.0)
-    age   = feat_dict.get("Age",        40.0)
+    lact = feat_dict.get("Lactate", 1.5)
+    plat = feat_dict.get("Platelets", 230.0)
+    wbc = feat_dict.get("WBC", 8.5)
+    oligo = feat_dict.get("Oliguria", 0)
+    urine = feat_dict.get("UrineOutput", 0.8)
+    dns1 = feat_dict.get("Dengue_NS1", 0)
+    mrdt = feat_dict.get("Malaria_RDT", 0)
+    hr = feat_dict.get("HR", 80.0)
+    temp = feat_dict.get("Temp", 37.0)
+    age = feat_dict.get("Age", 40.0)
     referred = feat_dict.get("Referred_Outside", 0)
 
-    # ── Clinical override rules (only when labs available) ───────────────────
-    clinical_boost  = 0.0
-    alert_override  = None
+    # Tropical mimic
+    mimic = _tropical_mimic(feat_dict)
+    if mimic["is_mimic"] and has_labs:
+        ai_score = float(np.clip(ai_score * mimic["suppression"], 0.01, 0.99))
+
+    # De-escalation
+    deesc_cap = _deescalation_cap(feat_dict)
+    if deesc_cap is not None:
+        ai_score = min(ai_score, deesc_cap)
+
+    # Clinical boost rules
+    clinical_boost = 0.0
+    alert_override = None
 
     if has_labs:
         if lact >= 4.0:
@@ -355,12 +323,7 @@ def predict(lgbm_input: np.ndarray | None,
             clinical_boost = max(clinical_boost, 0.52)
         if lact >= 5.0:
             alert_override = "critical"
-        if dns1 > 0 and plat < 50 and wbc < 4.0:
-            clinical_boost = max(clinical_boost, 0.70)
-            alert_override = "critical"
-        elif dns1 > 0 and plat < 150 and wbc < 4.5:
-            clinical_boost = max(clinical_boost, 0.52)
-        if mrdt > 0 and qsofa >= 1 and plat < 120:
+        if mrdt > 0 and qsofa >= 2 and plat < 120:
             clinical_boost = max(clinical_boost, 0.55)
         if age > 65 and lact >= 2.0 and qsofa >= 1:
             clinical_boost = max(clinical_boost, 0.52)
@@ -371,130 +334,155 @@ def predict(lgbm_input: np.ndarray | None,
     if no_labs and referred and hr > 110 and temp > 38.5:
         clinical_boost = max(clinical_boost, 0.52)
 
-    # No-labs safety net — conservative clinical rules when blind
+    # No-labs safety net
     if no_labs:
         if ai_score >= 0.52 and qsofa >= 2:
             alert_override = alert_override or "critical"
         elif qsofa >= 2:
-            # Sepsis-3 mandatory: qSOFA ≥ 2 = organ dysfunction suspected
             alert_override = alert_override or "warning"
         elif qsofa >= 1 and ai_score >= 0.30:
-            # LOOPHOLE FIX: borderline vitals + qSOFA=1 + score 0.3–0.4 was NONE.
-            # A single qSOFA point with a model score above 0.30 warrants monitoring.
             alert_override = alert_override or "warning"
+
+    # Sensor detached
+    if feat_dict.get("SensorDetached", 0) == 1:
+        return {
+            "aiScore": None,
+            "alertLevel": "sensor_error",
+            "message": "Sensor detached — cannot produce reliable prediction. Reattach sensor.",
+            "qsofaScore": qsofa,
+        }
 
     if clinical_boost > 0:
         ai_score = float(np.clip(max(ai_score, clinical_boost), 0.01, 0.99))
 
-    # ── Alert thresholds (from training notebook) ─────────────────────────────
-    thresholds   = _cfg.get("alert_thresholds", {})
-    thresh_red   = thresholds.get("red",   0.55)
-    thresh_amber = thresholds.get("amber", 0.40)
-
-    # Tighten thresholds when no labs (conservative bias)
+    # Alert thresholds
+    th = _cfg.get("alert_thresholds", {})
+    t_red = th.get("red", 0.55)
+    t_amber = th.get("amber", 0.40)
     if no_labs:
-        thresh_red   = thresh_red   - 0.05
-        thresh_amber = thresh_amber - 0.05
+        t_red -= 0.05
+        t_amber -= 0.05
 
-    # FIX M3: compute threshold-based alert AND override, take the more severe.
-    # Prevents alert_override from LOWERING an alert that thresholds would raise.
-    _ALERT_RANK = {"none": 0, "warning": 1, "critical": 2}
-    if ai_score >= thresh_red and qsofa >= 2:
-        _threshold_alert = "critical"
-    elif ai_score >= thresh_amber or qsofa >= 2:
-        _threshold_alert = "warning"
+    _RANK = {"none": 0, "warning": 1, "critical": 2}
+    if ai_score >= t_red and qsofa >= 2:
+        _th_alert = "critical"
+    elif ai_score >= t_amber or qsofa >= 2:
+        _th_alert = "warning"
     else:
-        _threshold_alert = "none"
+        _th_alert = "none"
 
     if alert_override:
-        # Take whichever is MORE severe — override never suppresses a threshold
         alert = (alert_override
-                 if _ALERT_RANK.get(alert_override, 0) >= _ALERT_RANK.get(_threshold_alert, 0)
-                 else _threshold_alert)
+                 if _RANK.get(alert_override, 0) >= _RANK.get(_th_alert, 0)
+                 else _th_alert)
     else:
-        alert = _threshold_alert
+        alert = _th_alert
 
-    # ── Confidence score ──────────────────────────────────────────────────────
-    lab_scen    = _label_lab_scenario(feat_dict)
+    # Confidence score
     has_history = feat_dict.get("DeltaSourceReadings", 0) > 1
     _CONF = {
-        "full":          (1.00, 0.82),
-        "partial_full":  (0.82, 0.68),
-        "partial_cbc":   (0.70, 0.58),
-        "no_labs":       (0.55, 0.40),
+        "has_labs": (1.00, 0.82),
+        "no_labs": (0.55, 0.40),
     }
-    confidence_score = _CONF[lab_scen][0 if has_history else 1]
+    lab_key = "has_labs" if has_labs else "no_labs"
+    confidence_score = _CONF[lab_key][0 if has_history else 1]
 
-    # ── Data quality warnings ─────────────────────────────────────────────────
-    # FIX #17: renamed from `warnings` to avoid shadowing stdlib warnings module
-    dq_warnings: list[str] = []
+    # Data quality warnings
+    dq_warnings = []
     if no_labs:
         dq_warnings.append(
-            "No lab results — score is vitals only (LightGBM stream). "
-            "XGBoost lab booster not activated. "
-            "Draw stat labs to enable full fusion model."
+            "No labs drawn — score based on vitals only (LightGBM). "
+            "Draw stat labs (Lactate, WBC, Creatinine) to enable full model."
         )
-    if not calibrated_flag:
+    elif n_labs == 1:
         dq_warnings.append(
-            "Platt calibration unavailable (platt_scaler.pkl missing). "
-            "Raw uncalibrated probability displayed."
+            f"Only 1 lab drawn — clinical rules applied but XGB fusion "
+            f"requires 2+ labs. Consider drawing additional labs."
         )
-    if not has_history:
+    if not is_fused_calibrated:
         dq_warnings.append(
-            "First reading — all 3-hour delta features are 0 (no prior data). "
-            "The score is conservative: rising trends in HR, WBC, Lactate, "
-            "Creatinine are invisible until reading 2+. "
-            "Re-evaluate after the next reading."
+            "Fused score is UNCALIBRATED — alert thresholds may not reflect true probability. "
+            "Generate platt_fused.json from validation set."
         )
+    if feat_dict.get("MissingHistory"):
+        dq_warnings.append(
+            "Insufficient history — delta features set to 0. "
+            "Score is conservative until 2+ readings are available."
+        )
+    if not feat_dict.get("DeltaValid", 0) and feat_dict.get("DeltaSourceReadings", 0) > 1:
+        actual_hrs = feat_dict.get("DeltaActualHours", 0)
+        dq_warnings.append(
+            f"Delta window is {actual_hrs:.1f}h (not true 3h) — "
+            "trend information may be incomplete."
+        )
+    if mimic["is_mimic"] and has_labs:
+        dq_warnings.append(
+            f"Tropical mimic detected ({mimic['mimic_type']}). "
+            "Sepsis score suppressed. Treat per tropical disease protocol."
+        )
+    if feat_dict.get("CRT_Synthetic"):
+        dq_warnings.append(
+            "CRT is estimated from MAP+ShockIndex (not measured at bedside). "
+            "Provide real CRT when available."
+        )
+    if deesc_cap is not None:
+        dq_warnings.append(
+            "De-escalation applied: improving vitals capped score at low-risk."
+        )
+
+    # qsofaComponents from raw vitals
+    rr_val = float(v.get("resp", 0))
+    gcs_val = float(v.get("gcs", 15))
+    sbp_val = float(v.get("systolicBp", 120))
 
     return {
-        "aiScore":            round(ai_score, 4),
-        "qsofaScore":         qsofa,
-        "alertLevel":         alert,
-        "attentionWeights":   _synthetic_attention(v, ai_score),
-        "modelScores": {
-            "lgbm_tft":     round(tft, 4),
-            "xgb_lab":      round(xgb_score, 4) if has_labs else None,
-            "fused_raw":    round(raw_score, 4),
-            "calibrated":   round(calibrated_tft, 4) if calibrated_tft is not None else None,
+        "aiScore": round(ai_score, 4),
+        "qsofaScore": qsofa,
+        "qsofaComponents": {
+            "rr_ge22": int(rr_val >= 22),
+            "gcs_lt15": int(gcs_val < 15),
+            "sbp_le100": int(sbp_val <= 100),
         },
-        "confidenceScore":     round(confidence_score, 2),
+        "alertLevel": alert,
+        "monitoringUrgencyWeights": _monitoring_urgency(v, ai_score),
+        "modelScores": {
+            "lgbm_tft": round(tft, 4),
+            "xgb_lab": round(xgb_score, 4) if xgb_ran else None,
+            "fused_raw": round(raw_score, 4),
+            "calibrated_tft": round(calibrated_tft, 4) if calibrated_tft else None,
+            "fused_calibrated": is_fused_calibrated,
+        },
+        "mimicInfo": mimic,
+        "confidenceScore": round(confidence_score, 2),
         "dataQualityWarnings": dq_warnings,
         "featureSummary": {
-            "crt":            round(feat_dict["CRT"], 2),
-            "crtSynthetic":   feat_dict.get("CRT_Synthetic", True),
-            "shockIndex":     round(feat_dict["ShockIndex"], 3),
-            "labScenario":    lab_scen,
-            "hasLabs":        has_labs,
-            "calibrated":     calibrated_flag,
-            "xgbEligible":    bool(xgb_score != tft),  # did XGB actually run?
+            "crt": round(feat_dict["CRT"], 2),
+            "crtSynthetic": feat_dict.get("CRT_Synthetic", True),
+            "shockIndex": round(feat_dict["ShockIndex"], 3),
+            "hasLabs": has_labs,
+            "nLabsDrawn": n_labs,
+            "xgbActive": xgb_ran,
+            "calibrated": calibrated_flag,
+            "fusedCalibrated": is_fused_calibrated,
         },
     }
-
-
-def _label_lab_scenario(feat_dict: dict) -> str:
-    # FIX #16: fallthrough must be 'no_labs' not 'full'.
-    # If all four flags are 0 (e.g. imputation failure), claiming full-lab
-    # confidence (1.00) is clinically dangerous. Safe default = no_labs (0.40).
-    if feat_dict.get("LabScenario_full"):         return "full"
-    if feat_dict.get("LabScenario_partial_full"): return "partial_full"
-    if feat_dict.get("LabScenario_partial_cbc"):  return "partial_cbc"
-    return "no_labs"  # safe default: lowest confidence tier
 
 
 def health() -> dict:
-    """Derives status from live model objects at call time — never from stale flags."""
     platt_ok = _platt is not None
-    reg_ok   = bool(_lgbm_feats and _xgb_feats)
+    reg_ok = bool(_lgbm_feats and _xgb_feats)
+    fused_ok = _platt_fused is not None
     return {
-        "lgbm_loaded":      _lgbm_model is not None,
-        "xgb_loaded":       _xgb_model  is not None,
-        "platt_loaded":     platt_ok,
-        "registry_loaded":  reg_ok,
-        "models_ready":     _lgbm_model is not None,
-        "fully_ready":      _lgbm_model is not None and platt_ok and reg_ok,
+        "lgbm_loaded": _lgbm_model is not None,
+        "xgb_loaded": _xgb_model is not None,
+        "platt_loaded": platt_ok,
+        "fused_platt_loaded": fused_ok,
+        "registry_loaded": reg_ok,
+        "models_ready": _lgbm_model is not None,
+        "fully_ready": _lgbm_model is not None and platt_ok and reg_ok and fused_ok,
         "warnings": (
-            (["platt_scaler.pkl missing — calibration disabled"] if not platt_ok else []) +
-            (["feature_registry.json missing — column order unvalidated"] if not reg_ok else [])
+            (["platt_scaler.pkl missing"] if not platt_ok else []) +
+            (["platt_fused.json missing"] if not fused_ok else []) +
+            (["feature_registry.json missing"] if not reg_ok else [])
         ),
     }

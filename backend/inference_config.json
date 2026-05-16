@@ -16,12 +16,14 @@
   "evaluation": {
     "fusion_auroc": 0.9896,
     "fusion_auprc": 0.9878,
-    "sensitivity": 0.9624,
+    "sensitivity": 0.9623,
     "specificity": 0.9832,
     "s1_lgbm_auroc": 0.9876,
     "s2_xgb_auroc": 0.9901
   },
   "xgb_trained_on_has_lab_only": true,
+  "xgb_min_labs": 2,
+  "platt_fused_available": true,
   "platt_input_feature": "TFT_Score",
   "platt_used_for": "display_calibration_only"
 }

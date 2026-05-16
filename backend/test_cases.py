@@ -34,8 +34,9 @@ CASES = {
             "platelets":  {"value": 90,   "performed": True},
             "creatinine": {"value": 2.4,  "performed": True},
             "bilirubin":  {"value": 2.1,  "performed": True},
-            "dengueNS1":  {"value": 0,    "performed": True},
-            "malariaRDT": {"value": 0,    "performed": True}
+            "dengueNS1":  {"value": 0,    "performed": False},
+            "malariaRDT": {"value": 0,    "performed": False},
+            "crp":        {"value": 8.5,  "performed": True}
         },
         "demographics": {
             "age": 58, "gender": "Male", "bmi": 23.5,
@@ -60,7 +61,8 @@ CASES = {
             "creatinine": {"value": 0,   "performed": False},
             "bilirubin":  {"value": 0,   "performed": False},
             "dengueNS1":  {"value": 1,   "performed": True},
-            "malariaRDT": {"value": 0,   "performed": True}
+            "malariaRDT": {"value": 0,   "performed": True},
+            "crp":        {"value": 0.0, "performed": False}
         },
         "demographics": {
             "age": 34, "gender": "Female", "bmi": 21.0,
@@ -84,8 +86,9 @@ CASES = {
             "platelets":  {"value": 245,  "performed": True},
             "creatinine": {"value": 0.85, "performed": True},
             "bilirubin":  {"value": 0.5,  "performed": True},
-            "dengueNS1":  {"value": 0,    "performed": True},
-            "malariaRDT": {"value": 0,    "performed": True}
+            "dengueNS1":  {"value": 0,    "performed": False},
+            "malariaRDT": {"value": 0,    "performed": False},
+            "crp":        {"value": 8.5,  "performed": True}
         },
         "demographics": {
             "age": 28, "gender": "Male", "bmi": 22.0,
@@ -171,10 +174,10 @@ def run_unit_tests() -> None:
     # ── Delta baseline index ──────────────────────────────────────────────────
     # 5-second intervals, 12 readings → 60 s total; 3 h far exceeds buffer → idx 0
     check("Short buffer → baseline index 0",
-          feat._baseline_index(12, 5) == 0)
+          feat._baseline_index(12, 5)[0] == 0)
     # 900-second intervals, 20 readings → 5 h buffer; 3 h back ≈ 12 steps → idx max(0, 20-1-12)=7
     check("15-min cadence, 20 readings → idx 7",
-          feat._baseline_index(20, 900) == 7)
+          feat._baseline_index(20, 900)[0] == 7)
 
     print()
     if failures:
@@ -213,8 +216,8 @@ def run_integration_tests() -> None:
             print(f"  shockIndex   : {r['featureSummary']['shockIndex']}")
             print(f"  crt          : {r['featureSummary']['crt']}")
             print("  Top SHAP drivers:")
-            for d in r.get("shapDrivers", [])[:5]:
-                bar = "▲" if d["shap"] > 0 else "▼"
+            for d in r.get("riskFactors", [])[:5]:
+                bar = "▲" if d["influence"] > 0 else "▼"
                 print(f"    {bar}  {d['feature']:<28} val={d['value']}  shap={d['shap']}")
         except Exception as e:
             print(f"  ERROR: {e}")

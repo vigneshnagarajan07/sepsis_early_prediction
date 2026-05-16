@@ -55,6 +55,8 @@ from sklearn.metrics       import (
     roc_curve, precision_recall_curve, confusion_matrix,
 )
 
+import sklearn
+
 # ── Paths ─────────────────────────────────────────────────────────
 # FIX #9: configurable paths — override OUTPUT_DIR for local runs
 import os
@@ -69,6 +71,7 @@ META_PATH  = os.getenv("SEPSIS_META_PATH", "/content/coimbatore_v2_meta.csv")
 # ─────────────────────────────────────────────────────────────────
 
 # Stream 1 — LightGBM wearable vitals + demographics (no raw lab values)
+# MUST match features.py::LGBM_FEATURES exactly — verified by assertion after training
 VITAL_FEAT = [
     # Wearable vitals
     "HR", "HRV_SDNN", "SpO2", "Temp", "MAP", "RespRate",
@@ -294,7 +297,10 @@ df_15 = (df.groupby(["PatientID","window_idx"])
            .reset_index(drop=True))
 
 df_15["time_idx"] = df_15.groupby("PatientID").cumcount()
-df_15 = df_15.fillna(0)
+# FIX: only zero non-tested columns to preserve lab availability signals
+_tested_cols_15 = [c for c in df_15.columns if c.endswith("_Tested")]
+_safe_cols_15   = [c for c in df_15.columns if c not in _tested_cols_15]
+df_15[_safe_cols_15] = df_15[_safe_cols_15].fillna(0)
 
 print(f"  15-min shape    : {df_15.shape}")
 print(f"  Unique patients : {df_15['PatientID'].nunique()}")
@@ -477,7 +483,20 @@ platt.fit(
     val_df[["TFT_Score"]].values,
     val_df["SepsisLabel"].values,
 )
-print(f"  Platt fitted on {len(val_df):,} validation rows")
+print(f"  Platt (LGBM) fitted on {len(val_df):,} validation rows")
+
+# Platt scaler on FUSED validation score (models.py uses this for ai_score)
+"""_val_xgb_s = tft_vl.copy()
+_val_xgb_s[_xgb_eligible_vl] = xgb_model.predict_proba(
+    val_df.loc[_xgb_eligible_vl, LAB_BOOSTER_COLS].values
+)[:, 1]
+_w_l_vl = np.where(_xgb_eligible_vl, W_LGBM_LABS, W_LGBM_NOLABS)
+_w_x_vl = np.where(_xgb_eligible_vl, W_XGB_LABS, 0.00)
+_fused_vl = _w_l_vl * tft_vl + _w_x_vl * _val_xgb_s
+
+platt_fused_lr = LogisticRegression(C=1.0, max_iter=1000, random_state=42)
+platt_fused_lr.fit(_fused_vl.reshape(-1, 1), val_df["SepsisLabel"].values)
+print(f"  Platt (fused) fitted on {len(val_df):,} validation rows")"""
 
 # ═════════════════════════════════════════════════════════════════
 # STEP 5d — SCORE FUSION
@@ -491,12 +510,18 @@ xgb_te[has_lab_te] = xgb_model.predict_proba(
 )[:, 1]
 
 # Fusion weights
+# FIX TC-4: XGB requires 2+ labs to match inference gate (XGB_MIN_LABS=2)
 W_LGBM_NOLABS = 1.00
 W_LGBM_LABS   = 0.40
 W_XGB_LABS    = 0.60
+XGB_MIN_LABS  = 2   # must match models.py XGB_MIN_LABS
 
-w_lgbm  = np.where(has_lab_te, W_LGBM_LABS, W_LGBM_NOLABS)
-w_xgb   = np.where(has_lab_te, W_XGB_LABS,  0.00)
+# Count labs per test row (reuse tested_cols from step 5b)
+_n_labs_te = test_df[tested_cols].sum(axis=1).values
+_xgb_eligible_te = _n_labs_te >= XGB_MIN_LABS
+
+w_lgbm  = np.where(_xgb_eligible_te, W_LGBM_LABS, W_LGBM_NOLABS)
+w_xgb   = np.where(_xgb_eligible_te, W_XGB_LABS,  0.00)
 final   = w_lgbm * tft_te + w_xgb * xgb_te
 
 y_true  = test_df["SepsisLabel"].values
@@ -514,8 +539,10 @@ xgb_vl[has_lab_vl] = xgb_model.predict_proba(
     val_df.loc[has_lab_vl, LAB_BOOSTER_COLS].values
 )[:, 1]
 
-w_l_vl  = np.where(has_lab_vl, W_LGBM_LABS, W_LGBM_NOLABS)
-w_x_vl  = np.where(has_lab_vl, W_XGB_LABS,  0.00)
+_n_labs_vl = val_df[tested_cols].sum(axis=1).values
+_xgb_eligible_vl = _n_labs_vl >= XGB_MIN_LABS
+w_l_vl  = np.where(_xgb_eligible_vl, W_LGBM_LABS, W_LGBM_NOLABS)
+w_x_vl  = np.where(_xgb_eligible_vl, W_XGB_LABS,  0.00)
 final_vl = w_l_vl * tft_vl + w_x_vl * xgb_vl
 y_val   = val_df["SepsisLabel"].values
 
@@ -538,6 +565,17 @@ for t_red in np.arange(0.35, 0.75, 0.02):
 
 print(f"  Optimal thresholds — RED: {best_thresh_red}  AMBER: {best_thresh_amber}  (F2={best_f2:.4f})")
 
+_val_xgb_s = tft_vl.copy()
+_val_xgb_s[_xgb_eligible_vl] = xgb_model.predict_proba(
+    val_df.loc[_xgb_eligible_vl, LAB_BOOSTER_COLS].values
+)[:, 1]
+_w_l_vl = np.where(_xgb_eligible_vl, W_LGBM_LABS, W_LGBM_NOLABS)
+_w_x_vl = np.where(_xgb_eligible_vl, W_XGB_LABS, 0.00)
+_fused_vl = _w_l_vl * tft_vl + _w_x_vl * _val_xgb_s
+
+platt_fused_lr = LogisticRegression(C=1.0, max_iter=1000, random_state=42)
+platt_fused_lr.fit(_fused_vl.reshape(-1, 1), val_df["SepsisLabel"].values)
+print(f"  Platt (fused) fitted on {len(val_df):,} validation rows")
 # ═════════════════════════════════════════════════════════════════
 # STEP 7 — EVALUATION
 # ═════════════════════════════════════════════════════════════════
@@ -669,6 +707,18 @@ print("✓ xgb_booster.json")
 joblib.dump(platt, f"{OUTPUT_DIR}/platt_scaler.pkl")
 print("✓ platt_scaler.pkl")
 
+# 3b. Fused Platt scaler as JSON (for models.py _calibrate_fused)
+import json as _json
+platt_fused_data = {
+    "coef": platt_fused_lr.coef_.tolist(),
+    "intercept": platt_fused_lr.intercept_.tolist(),
+    "sklearn_version": __import__("sklearn").__version__,
+    "fitted_on": "fused_validation_score",
+}
+with open(f"{OUTPUT_DIR}/platt_fused.json", "w") as f:
+    _json.dump(platt_fused_data, f, indent=2)
+print("✓ platt_fused.json")
+
 # 4. Feature registry (single source of truth for column order)
 feature_registry = {
     "lgbm_vital_features":  VITAL_FEAT,
@@ -697,6 +747,8 @@ inference_config = {
         "s2_xgb_auroc":   round(float(s2_auroc), 4),
     },
     "xgb_trained_on_has_lab_only": True,
+    "xgb_min_labs":  XGB_MIN_LABS,   # inference gate must match this
+    "platt_fused_available": True,
     "platt_input_feature":         "TFT_Score",
     "platt_used_for":              "display_calibration_only",
 }

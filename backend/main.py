@@ -6,6 +6,7 @@ Run:  uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 import os
 import time
 import logging
+from collections import defaultdict
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
@@ -340,6 +341,8 @@ async def session_start(req: SessionStartRequest, request: Request,
     try:
         payload = ps.start_session(req.patient_id)
         return await _run_prediction_on_payload(payload)
+    except (ValueError, PermissionError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

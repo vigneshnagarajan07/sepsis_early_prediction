@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { 
   Activity, 
   ChevronRight,
@@ -36,7 +36,7 @@ interface PatientDemographics {
   immunosuppression: boolean;
   priorAntibiotics: boolean; // Critical Risk Factor
   referredFromOutside: boolean; // Critical Risk Factor
-  gramNegativeRisk: boolean;
+  gramNegativeRisk: boolean; // Maps to AMR_Resistance in backend
   malariaEndemic: boolean;
   dengueEndemic: boolean;
 }
@@ -86,6 +86,8 @@ interface PatientMeta {
 // --- Components ---
 
 export default function SepsisDashboard() {
+  const [sessionId] = useState(() => crypto.randomUUID());
+
   // 1. Patient Demographics (Sidebar)
   const [demographics, setDemographics] = useState<PatientDemographics>({
     age: 45,
@@ -150,7 +152,7 @@ export default function SepsisDashboard() {
   const [activePatient, setActivePatient] = useState<PatientMeta | null>(null);
   const [feedProgress, setFeedProgress]   = useState({ current: 0, total: 0 });
   const [showPatientPicker, setShowPatientPicker] = useState(false);
-  const feedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const feedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // BUG FIX: track in-flight requests to prevent concurrent stacking during simulation
   const analysisInFlight = useRef(false);
   // BUG FIX: surface API errors to the clinician instead of only console.error
@@ -196,7 +198,10 @@ export default function SepsisDashboard() {
     try {
       const response = await fetch('/api/predict', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionId
+        },
         body: JSON.stringify({
           vitals,
           labs,
@@ -239,14 +244,14 @@ export default function SepsisDashboard() {
   // ─── File-Feed Pipeline ──────────────────────────────────────────
   // Loads patient list on mount
   useEffect(() => {
-    fetch('/api/patients')
+    fetch('/api/patients', { headers: { 'X-Session-ID': sessionId } })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => setPatients(d.patients || []))
       .catch(err => {
         console.error('Failed to load patient list:', err);
         setAnalysisError('Backend unavailable — patient files could not be loaded.');
       });
-  }, []);
+  }, [sessionId]);
 
   // Apply a tick response — updates ALL state from backend file reading
   const applyTickResponse = useCallback((data: any) => {
@@ -302,14 +307,17 @@ export default function SepsisDashboard() {
   const startFileFeed = useCallback(async (patientId: string) => {
     // Stop any running simulation
     setIsSimulating(false);
-    if (feedTimerRef.current) clearInterval(feedTimerRef.current);
+    if (feedTimerRef.current) clearTimeout(feedTimerRef.current);
 
     setIsAnalyzing(true);
     setAnalysisError(null);
     try {
       const res = await fetch('/api/session/start', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionId
+        },
         body: JSON.stringify({ patient_id: patientId }),
       });
       if (!res.ok) {
@@ -330,38 +338,48 @@ export default function SepsisDashboard() {
       // Demo: clamp to 4s minimum so it moves visibly
       const pollMs = Math.max(4000, Math.min(intervalMs, 15000));
 
-      feedTimerRef.current = setInterval(async () => {
+      const tick = async () => {
         try {
-          const tickRes = await fetch('/api/session/tick', { method: 'POST' });
+          const tickRes = await fetch('/api/session/tick', { 
+            method: 'POST',
+            headers: { 'X-Session-ID': sessionId }
+          });
           const tickData = await tickRes.json();
           if (tickData.done) {
             stopFileFeed();
             return;
           }
           applyTickResponse(tickData);
+          feedTimerRef.current = setTimeout(tick, pollMs);
         } catch {
           // network blip — keep polling
+          feedTimerRef.current = setTimeout(tick, pollMs);
         }
-      }, pollMs);
+      };
+
+      feedTimerRef.current = setTimeout(tick, pollMs);
 
     } catch (e: any) {
       setAnalysisError(e.message || 'Failed to start file feed');
     } finally {
       setIsAnalyzing(false);
     }
-  }, [patients, applyTickResponse]);
+  }, [patients, applyTickResponse, sessionId]);
 
   // Stop file-feed session
   const stopFileFeed = useCallback(() => {
     if (feedTimerRef.current) {
-      clearInterval(feedTimerRef.current);
+      clearTimeout(feedTimerRef.current);
       feedTimerRef.current = null;
     }
     setIsFileFed(false);
     setActivePatient(null);
     setFeedProgress({ current: 0, total: 0 });
-    fetch('/api/session/stop', { method: 'POST' }).catch(() => {});
-  }, []);
+    fetch('/api/session/stop', { 
+      method: 'POST',
+      headers: { 'X-Session-ID': sessionId }
+    }).catch(() => {});
+  }, [sessionId]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -816,6 +834,14 @@ export default function SepsisDashboard() {
                       onValueChange={v => updateLab('creatinine', 'value', v)}
                       onToggle={p => updateLab('creatinine', 'performed', p)}
                     />
+                    <LabRow
+                      label="Serum CRP"
+                      unit="mg/L" refRange="< 10.0" refMin={0} refMax={10.0}
+                      value={labs.crp.value} performed={labs.crp.performed}
+                      min={0.1} max={500} step={0.1}
+                      onValueChange={v => updateLab('crp', 'value', v)}
+                      onToggle={p => updateLab('crp', 'performed', p)}
+                    />
                   </div>
                   <div className="space-y-4">
                     <LabRow
@@ -953,6 +979,7 @@ export default function SepsisDashboard() {
                         }`}>{Math.round(result.confidenceScore * 100)}%</span>
                       </div>
                     )}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1068,6 +1095,7 @@ export default function SepsisDashboard() {
                         </thead>
                         <tbody className="divide-y divide-brand-border bg-white">
                           <HistoricalLabRow label="Serum Lactate" value={labs.lactate.value} refRange="< 2.0" status={labs.lactate.value > 2.0 ? 'danger' : 'normal'} />
+                          <HistoricalLabRow label="Serum CRP" value={labs.crp.value} refRange="< 10.0" status={labs.crp.value > 10.0 ? 'danger' : 'normal'} />
                           <HistoricalLabRow label="WBC Count" value={labs.wbc.value} refRange="4.0-11.0" status={(labs.wbc.value > 11.0 || labs.wbc.value < 4.0) ? 'warning' : 'normal'} />
                           <HistoricalLabRow label="Platelets" value={labs.platelets.value} refRange="150-450" status={labs.platelets.value < 150 ? 'warning' : 'normal'} />
                           <HistoricalLabRow label="Creatinine" value={labs.creatinine.value} refRange="0.6-1.2" status={labs.creatinine.value > 1.2 ? 'warning' : 'normal'} />

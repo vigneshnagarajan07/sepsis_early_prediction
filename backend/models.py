@@ -91,10 +91,16 @@ def _load() -> None:
         log.info("[models] inference_config.json not found — using training defaults")
 
     # ── LightGBM ─────────────────────────────────────────────────────────────
-    # FIX #14: capture full exception detail; set SEPSIS_STRICT_STARTUP=1
-    # to make the server refuse to start if LightGBM is unavailable
     _strict = os.getenv("SEPSIS_STRICT_STARTUP", "0") == "1"
     try:
+        # BUG FIX: LightGBM C++ core calls abort() on fatal format errors,
+        # killing the whole Python process. We must sanity-check the file
+        # header before passing it to lgb.Booster.
+        with open(LGBM_PATH, "r") as f:
+            first_line = f.readline().strip()
+            if not (first_line.startswith("pandas_categorical") or first_line.startswith("version") or first_line.startswith("tree")):
+                raise ValueError(f"Invalid LightGBM model header: {first_line[:50]}")
+
         _lgbm_model = lgb.Booster(model_file=LGBM_PATH)
 
         # Validate stored feature names match registry

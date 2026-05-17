@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as d3 from 'd3';
-import { mockPatientFeed } from './mockPatientFeed.js';
 
 // --- Types ---
 
@@ -84,80 +83,6 @@ interface PatientMeta {
   has_labs: boolean;
 }
 
-interface PredictionPayload {
-  vitals: Vitals;
-  labs: Labs;
-  demographics: PatientDemographics;
-  vitalsHistory: VitalsHistory;
-  previousLabs?: Labs;
-  intervalSeconds: number;
-}
-
-const emptyVitalsHistory = (): VitalsHistory => ({
-  hr: [],
-  map: [],
-  resp: [],
-  temp: [],
-  o2sat: [],
-  urineOutput: [],
-  gcs: [],
-  systolicBp: [],
-});
-
-const defaultLabs = (): Labs => ({
-  lactate: { value: 1.2, performed: false },
-  pct: { value: 0.05, performed: false },
-  wbc: { value: 8.5, performed: false },
-  platelets: { value: 250, performed: false },
-  creatinine: { value: 1.0, performed: false },
-  bilirubin: { value: 0.5, performed: false },
-  crp: { value: 5.0, performed: false },
-  dengueNS1: { value: 0, performed: false },
-  malariaRDT: { value: 0, performed: false },
-});
-
-const normalizeLab = (fallback: LabTest, raw?: Partial<LabTest>): LabTest => ({
-  value: Number(raw?.value ?? fallback.value),
-  performed: Boolean(raw?.performed ?? fallback.performed),
-});
-
-const normalizeLabs = (raw: Partial<Record<keyof Labs, Partial<LabTest>>> = {}): Labs => {
-  const fallback = defaultLabs();
-  return {
-    lactate: normalizeLab(fallback.lactate, raw.lactate),
-    pct: normalizeLab(fallback.pct, raw.pct),
-    wbc: normalizeLab(fallback.wbc, raw.wbc),
-    platelets: normalizeLab(fallback.platelets, raw.platelets),
-    creatinine: normalizeLab(fallback.creatinine, raw.creatinine),
-    bilirubin: normalizeLab(fallback.bilirubin, raw.bilirubin),
-    crp: normalizeLab(fallback.crp, raw.crp),
-    dengueNS1: normalizeLab(fallback.dengueNS1, raw.dengueNS1),
-    malariaRDT: normalizeLab(fallback.malariaRDT, raw.malariaRDT),
-  };
-};
-
-const normalizeVitals = (raw: Record<string, number>): Vitals => ({
-  hr: Number(raw.hr),
-  map: Number(raw.map),
-  resp: Number(raw.resp),
-  temp: Number(raw.temp),
-  o2sat: Number(raw.o2sat),
-  urineOutput: Number(raw.urineOutput),
-  gcs: Number(raw.gcs),
-  systolicBp: Number(raw.systolicBp),
-});
-
-const appendVitalsHistory = (history: VitalsHistory, next: Vitals): VitalsHistory => ({
-  hr: [...history.hr.slice(-19), next.hr],
-  map: [...history.map.slice(-19), next.map],
-  resp: [...history.resp.slice(-19), next.resp],
-  temp: [...history.temp.slice(-19), next.temp],
-  o2sat: [...history.o2sat.slice(-19), next.o2sat],
-  urineOutput: [...history.urineOutput.slice(-19), next.urineOutput],
-  gcs: [...history.gcs.slice(-19), next.gcs],
-  systolicBp: [...history.systolicBp.slice(-19), next.systolicBp],
-});
-
 // --- Components ---
 
 export default function SepsisDashboard() {
@@ -205,7 +130,17 @@ export default function SepsisDashboard() {
   // FIX: all performed:false — blank form = no labs drawn.
   // Values pre-filled as sensible defaults for when nurse toggles performed:true.
   // Sending performed:false to backend triggers median imputation, not value=0.
-  const [labs, setLabs] = useState<Labs>(() => defaultLabs());
+  const [labs, setLabs] = useState<Labs>({
+    lactate: { value: 1.2, performed: false },
+    pct: { value: 0.05, performed: false },
+    wbc: { value: 8.5, performed: false },
+    platelets: { value: 250, performed: false },
+    creatinine: { value: 1.0, performed: false },
+    bilirubin: { value: 0.5, performed: false },
+    crp: { value: 5.0, performed: false },
+    dengueNS1: { value: 0, performed: false },
+    malariaRDT: { value: 0, performed: false },
+  });
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -243,36 +178,40 @@ export default function SepsisDashboard() {
 
   // Previous lab draw — sent to backend to compute Delta_3h_Lactate etc.
   const [previousLabs, setPreviousLabs] = useState<Labs | null>(null);
-  const mockIndexRef = useRef(0);
-  const mockHistoryRef = useRef<VitalsHistory>(emptyVitalsHistory());
-  const mockPreviousLabsRef = useRef<Labs | null>(null);
 
   // --- Logic ---
 
   // qSOFA is computed server-side with full clinical logic; no local duplicate needed.
 
-  const submitPrediction = useCallback(async (
-    payload: PredictionPayload,
-    labsSnapshot: Labs,
-    clearExistingResult = true,
-  ) => {
-    if (analysisInFlight.current) return null;
+  const runAnalysis = useCallback(async () => {
+    // BUG FIX: skip if a request is already in flight (prevents concurrent stacking in sim mode)
+    if (analysisInFlight.current) return;
     analysisInFlight.current = true;
     setIsAnalyzing(true);
-    if (clearExistingResult) setResult(null);
+    setResult(null);
     setAnalysisError(null);
+
+    const labsSnapshot = labs;
 
     try {
       const response = await fetch('/api/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          vitals,
+          labs,
+          demographics,
+          vitalsHistory,
+          previousLabs: previousLabs ?? undefined,
+          intervalSeconds: isSimulating ? 5 : 0,
+        })
       });
 
       if (!response.ok) {
         let errorMsg = `Prediction failed (HTTP ${response.status})`;
         try {
           const errorJson = await response.json();
+          // FastAPI error detail is in errorJson.detail
           const detail = errorJson?.detail ?? JSON.stringify(errorJson);
           errorMsg += `: ${detail}`;
         } catch {
@@ -285,28 +224,17 @@ export default function SepsisDashboard() {
       const analysis = await response.json();
       setResult(analysis);
       setPreviousLabs(labsSnapshot);
-      return analysis;
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error("Inference Error:", msg);
+      // BUG FIX: show error to clinician in the UI, not just the console
       setAnalysisError(msg);
-      return null;
     } finally {
       setIsAnalyzing(false);
       analysisInFlight.current = false;
     }
-  }, []);
-
-  const runAnalysis = useCallback(async () => {
-    await submitPrediction({
-      vitals,
-      labs,
-      demographics,
-      vitalsHistory,
-      previousLabs: previousLabs ?? undefined,
-      intervalSeconds: isSimulating ? mockPatientFeed.intervalSeconds : 0,
-    }, labs);
-  }, [demographics, isSimulating, labs, previousLabs, submitPrediction, vitals, vitalsHistory]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vitals, labs, demographics, vitalsHistory, previousLabs, isSimulating]);
 
   // ─── File-Feed Pipeline ──────────────────────────────────────────
   // Loads patient list on mount
@@ -321,31 +249,42 @@ export default function SepsisDashboard() {
   }, []);
 
   // Apply a tick response — updates ALL state from backend file reading
-  const clearFeedTimer = useCallback(() => {
-    if (feedTimerRef.current) {
-      clearInterval(feedTimerRef.current);
-      feedTimerRef.current = null;
-    }
-  }, []);
-
   const applyTickResponse = useCallback((data: any) => {
     if (!data || data.done) return;
 
     // FIX F2: optional chaining + shape guard
     if (data?.vitals && typeof data.vitals.hr === "number") {
-      const nextVitals = normalizeVitals(data.vitals);
-      setVitals(nextVitals);
-      setVitalsHistory(prev => appendVitalsHistory(prev, nextVitals));
+      setVitals({
+        hr:          data.vitals.hr,
+        map:         data.vitals.map,
+        resp:        data.vitals.resp,
+        temp:        data.vitals.temp,
+        o2sat:       data.vitals.o2sat,
+        systolicBp:  data.vitals.systolicBp,
+        gcs:         data.vitals.gcs,
+        urineOutput: data.vitals.urineOutput,
+      });
     }
 
     if (data?.labs && typeof data.labs === "object") {
-      const nextLabs = normalizeLabs(data.labs);
-      setLabs(nextLabs);
-      setPreviousLabs(nextLabs);
+      setLabs(prev => ({
+        ...prev,
+        ...Object.fromEntries(
+          Object.entries(data.labs).map(([k, v]) => [k, v as any])
+        ),
+      }));
     }
 
-    if (data?.demographics && typeof data.demographics === "object") {
-      setDemographics(prev => ({ ...prev, ...data.demographics }));
+    if (data?.vitals) {
+      setVitalsHistory(prev => {
+        const next = { ...prev };
+        (Object.keys(data.vitals) as (keyof Vitals)[]).forEach(k => {
+          if (k in prev) {
+            next[k] = [...(prev[k] || []).slice(-19), data.vitals[k]];
+          }
+        });
+        return next;
+      });
     }
 
     if (data?.aiScore !== undefined) setResult(data);
@@ -359,92 +298,14 @@ export default function SepsisDashboard() {
     setLastUpdate(new Date());
   }, []);
 
-  const stopFileFeed = useCallback((resetDisplay = true) => {
-    clearFeedTimer();
-    setIsFileFed(false);
-    if (resetDisplay) {
-      setActivePatient(null);
-      setFeedProgress({ current: 0, total: 0 });
-    }
-    fetch('/api/session/stop', { method: 'POST' }).catch(() => {});
-  }, [clearFeedTimer]);
-
-  const stopMockFeed = useCallback((resetDisplay = true) => {
-    clearFeedTimer();
-    setIsSimulating(false);
-    if (resetDisplay) {
-      setFeedProgress({ current: 0, total: 0 });
-    }
-  }, [clearFeedTimer]);
-
-  const runMockStep = useCallback(async () => {
-    const readings = mockPatientFeed.readings;
-    const idx = mockIndexRef.current;
-    if (idx >= readings.length) {
-      stopMockFeed(false);
-      return;
-    }
-
-    const reading = readings[idx];
-    const nextVitals = normalizeVitals(reading.vitals);
-    const nextLabs = normalizeLabs(reading.labs);
-    const payloadHistory = mockHistoryRef.current;
-    const nextHistory = appendVitalsHistory(payloadHistory, nextVitals);
-
-    setVitals(nextVitals);
-    setLabs(nextLabs);
-    setDemographics(prev => ({ ...prev, ...mockPatientFeed.demographics }));
-    setVitalsHistory(nextHistory);
-    setFeedProgress({ current: idx + 1, total: readings.length });
-    setLastUpdate(new Date());
-
-    await submitPrediction({
-      vitals: nextVitals,
-      labs: nextLabs,
-      demographics: { ...demographics, ...mockPatientFeed.demographics },
-      vitalsHistory: payloadHistory,
-      previousLabs: mockPreviousLabsRef.current ?? undefined,
-      intervalSeconds: mockPatientFeed.intervalSeconds,
-    }, nextLabs, false);
-
-    mockHistoryRef.current = nextHistory;
-    mockPreviousLabsRef.current = nextLabs;
-    mockIndexRef.current = idx + 1;
-
-    if (idx >= readings.length - 1) {
-      stopMockFeed(false);
-    }
-  }, [demographics, stopMockFeed, submitPrediction]);
-
-  const startMockFeed = useCallback(() => {
-    if (isFileFed) stopFileFeed();
-    clearFeedTimer();
-    mockIndexRef.current = 0;
-    mockHistoryRef.current = emptyVitalsHistory();
-    mockPreviousLabsRef.current = null;
-    setActivePatient(null);
-    setPreviousLabs(null);
-    setVitalsHistory(emptyVitalsHistory());
-    setFeedProgress({ current: 0, total: mockPatientFeed.readings.length });
-    setAnalysisError(null);
-    setIsFileFed(false);
-    setIsSimulating(true);
-    void runMockStep();
-    feedTimerRef.current = setInterval(
-      () => void runMockStep(),
-      mockPatientFeed.intervalSeconds * 1000,
-    );
-  }, [clearFeedTimer, isFileFed, runMockStep, stopFileFeed]);
-
   // Start a file-feed session with a chosen patient
   const startFileFeed = useCallback(async (patientId: string) => {
-    stopMockFeed();
-    clearFeedTimer();
+    // Stop any running simulation
+    setIsSimulating(false);
+    if (feedTimerRef.current) clearInterval(feedTimerRef.current);
 
     setIsAnalyzing(true);
     setAnalysisError(null);
-    setPreviousLabs(null);
-    setVitalsHistory(emptyVitalsHistory());
     try {
       const res = await fetch('/api/session/start', {
         method: 'POST',
@@ -461,31 +322,24 @@ export default function SepsisDashboard() {
       const patient = patients.find(p => p.patient_id === patientId) || null;
       setActivePatient(patient);
       setIsFileFed(true);
-      setIsSimulating(false);
       setShowPatientPicker(false);
 
       // Poll /api/session/tick every interval_minutes converted to ms
       // Use 5s for demo speed, or actual clinical interval
-      const intervalMinutes = Number(data._meta?.interval_minutes ?? patient?.interval_minutes ?? 1);
-      const pollMs = Math.max(1, intervalMinutes) * 60 * 1000;
+      const intervalMs = ((data._meta?.interval_minutes ?? 15) * 1000);
+      // Demo: clamp to 4s minimum so it moves visibly
+      const pollMs = Math.max(4000, Math.min(intervalMs, 15000));
 
       feedTimerRef.current = setInterval(async () => {
         try {
           const tickRes = await fetch('/api/session/tick', { method: 'POST' });
-          if (!tickRes.ok) throw new Error(`Session tick failed (${tickRes.status})`);
           const tickData = await tickRes.json();
           if (tickData.done) {
             stopFileFeed();
             return;
           }
           applyTickResponse(tickData);
-          if (tickData?._meta?.done) {
-            stopFileFeed(false);
-          }
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          setAnalysisError(msg);
-          stopFileFeed(false);
+        } catch {
           // network blip — keep polling
         }
       }, pollMs);
@@ -495,14 +349,26 @@ export default function SepsisDashboard() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [applyTickResponse, clearFeedTimer, patients, stopFileFeed, stopMockFeed]);
+  }, [patients, applyTickResponse]);
+
+  // Stop file-feed session
+  const stopFileFeed = useCallback(() => {
+    if (feedTimerRef.current) {
+      clearInterval(feedTimerRef.current);
+      feedTimerRef.current = null;
+    }
+    setIsFileFed(false);
+    setActivePatient(null);
+    setFeedProgress({ current: 0, total: 0 });
+    fetch('/api/session/stop', { method: 'POST' }).catch(() => {});
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      clearFeedTimer();
+      if (feedTimerRef.current) clearInterval(feedTimerRef.current);
     };
-  }, [clearFeedTimer]);
+  }, []);
   // ─────────────────────────────────────────────────────────────────
 
   // Helper for lab inputs
@@ -525,6 +391,8 @@ export default function SepsisDashboard() {
   // FIX #23: store latest runAnalysis in a ref so the interval closure always
   // calls the current version without listing runAnalysis as a dep (which would
   // restart the interval on every vitals state change during simulation).
+  const runAnalysisRef = useRef(runAnalysis);
+  useEffect(() => { runAnalysisRef.current = runAnalysis; }, [runAnalysis]);
 
   // FIX #23: use a ref to hold the latest runAnalysis so the interval
   // is NOT recreated every time runAnalysis changes (dep churn).

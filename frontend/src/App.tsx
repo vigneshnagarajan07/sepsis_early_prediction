@@ -257,6 +257,14 @@ export default function SepsisDashboard() {
   const applyTickResponse = useCallback((data: any) => {
     if (!data || data.done) return;
 
+    if (data.demographics) {
+      setDemographics(data.demographics);
+    }
+
+    if (data.vitalsHistory) {
+      setVitalsHistory(data.vitalsHistory);
+    }
+
     // FIX F2: optional chaining + shape guard
     if (data?.vitals && typeof data.vitals.hr === "number") {
       setVitals({
@@ -280,18 +288,6 @@ export default function SepsisDashboard() {
       }));
     }
 
-    if (data?.vitals) {
-      setVitalsHistory(prev => {
-        const next = { ...prev };
-        (Object.keys(data.vitals) as (keyof Vitals)[]).forEach(k => {
-          if (k in prev) {
-            next[k] = [...(prev[k] || []).slice(-19), data.vitals[k]];
-          }
-        });
-        return next;
-      });
-    }
-
     if (data?.aiScore !== undefined) setResult(data);
 
     if (data?._meta) {
@@ -307,7 +303,10 @@ export default function SepsisDashboard() {
   const startFileFeed = useCallback(async (patientId: string) => {
     // Stop any running simulation
     setIsSimulating(false);
-    if (feedTimerRef.current) clearTimeout(feedTimerRef.current);
+    if (feedTimerRef.current) {
+      clearTimeout(feedTimerRef.current);
+      feedTimerRef.current = null;
+    }
 
     setIsAnalyzing(true);
     setAnalysisError(null);
@@ -331,13 +330,20 @@ export default function SepsisDashboard() {
       setActivePatient(patient);
       setIsFileFed(true);
       setShowPatientPicker(false);
+      // NOTE: We no longer start the tick loop here.
+      // The user must click "Start File Feed" to begin playback.
 
-      // Poll /api/session/tick every interval_minutes converted to ms
-      // Use 5s for demo speed, or actual clinical interval
-      const intervalMs = ((data._meta?.interval_minutes ?? 15) * 1000);
-      // Demo: clamp to 4s minimum so it moves visibly
-      const pollMs = Math.max(4000, Math.min(intervalMs, 15000));
+    } catch (e: any) {
+      setAnalysisError(e.message || 'Failed to start file feed');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [patients, applyTickResponse, sessionId]);
 
+  // Handle File Feed Polling
+  useEffect(() => {
+    if (isFileFed && isSimulating) {
+      const pollMs = 2000;
       const tick = async () => {
         try {
           const tickRes = await fetch('/api/session/tick', { 
@@ -346,7 +352,7 @@ export default function SepsisDashboard() {
           });
           const tickData = await tickRes.json();
           if (tickData.done) {
-            stopFileFeed();
+            setIsSimulating(false);
             return;
           }
           applyTickResponse(tickData);
@@ -356,18 +362,19 @@ export default function SepsisDashboard() {
           feedTimerRef.current = setTimeout(tick, pollMs);
         }
       };
-
       feedTimerRef.current = setTimeout(tick, pollMs);
-
-    } catch (e: any) {
-      setAnalysisError(e.message || 'Failed to start file feed');
-    } finally {
-      setIsAnalyzing(false);
     }
-  }, [patients, applyTickResponse, sessionId]);
+    return () => {
+      if (feedTimerRef.current) {
+        clearTimeout(feedTimerRef.current);
+        feedTimerRef.current = null;
+      }
+    };
+  }, [isFileFed, isSimulating, applyTickResponse, sessionId]);
 
   // Stop file-feed session
   const stopFileFeed = useCallback(() => {
+    setIsSimulating(false);
     if (feedTimerRef.current) {
       clearTimeout(feedTimerRef.current);
       feedTimerRef.current = null;
@@ -375,6 +382,22 @@ export default function SepsisDashboard() {
     setIsFileFed(false);
     setActivePatient(null);
     setFeedProgress({ current: 0, total: 0 });
+    
+    // Reset to defaults
+    setDemographics({
+      age: 45, gender: 'Male', bmi: 24.5, diabetes: false, ckd: false,
+      cirrhosis: false, malignancy: false, immunosuppression: false,
+      priorAntibiotics: false, referredFromOutside: false,
+      gramNegativeRisk: false, malariaEndemic: false, dengueEndemic: false
+    });
+    setVitals({ hr: 85, map: 90, resp: 18, temp: 37.0, o2sat: 98, urineOutput: 0.8, gcs: 15, systolicBp: 120 });
+    setVitalsHistory({
+      hr: [80, 82, 85, 84, 85], map: [88, 89, 90, 91, 90], resp: [16, 17, 18, 17, 18],
+      temp: [36.8, 36.9, 37.0, 37.0, 37.0], o2sat: [97, 98, 98, 99, 98],
+      urineOutput: [0.7, 0.8, 0.8, 0.8, 0.8], gcs: [15, 15, 15, 15, 15], systolicBp: [118, 120, 120, 122, 120]
+    });
+    setResult(null);
+
     fetch('/api/session/stop', { 
       method: 'POST',
       headers: { 'X-Session-ID': sessionId }
@@ -384,7 +407,7 @@ export default function SepsisDashboard() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (feedTimerRef.current) clearInterval(feedTimerRef.current);
+      if (feedTimerRef.current) clearTimeout(feedTimerRef.current);
     };
   }, []);
   // ─────────────────────────────────────────────────────────────────
@@ -420,7 +443,7 @@ export default function SepsisDashboard() {
   // 1. Data Drift (Vitals Only) + periodic analysis
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
-    if (isSimulating) {
+    if (isSimulating && !isFileFed) {
       interval = setInterval(() => {
         setVitals(prev => {
           const nextVitals = {
@@ -449,18 +472,18 @@ export default function SepsisDashboard() {
       }, 5000);
     }
     return () => clearInterval(interval);
-  }, [isSimulating]); // FIX #23: runAnalysis removed from deps — accessed via ref
+  }, [isSimulating, isFileFed]); // FIX #23: runAnalysis removed from deps — accessed via ref
 
   // 2. Auto-Analysis sync — trigger once per simulation tick, not on every state change
   // BUG FIX: original deps array [vitals, labs, demographics, isSimulating] caused
   // runAnalysis to fire on every keystroke in the UI when simulating.
   // Now we only trigger when the simulation flag itself changes to true.
   useEffect(() => {
-    if (isSimulating) {
+    if (isSimulating && !isFileFed) {
       runAnalysis();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSimulating]);
+  }, [isSimulating, isFileFed]);
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-brand-bg text-brand-text font-sans selection:bg-brand-primary/10">
@@ -484,7 +507,7 @@ export default function SepsisDashboard() {
           <div className="space-y-4">
             <div className="input-group flex flex-col gap-1">
               <label className="text-[11px] font-bold text-brand-text">Patient ID</label>
-              <input type="text" value="P-99201" readOnly className="w-full bg-[#fafafa] border border-brand-border rounded px-2 py-1.5 text-[13px] outline-none" />
+              <input type="text" value={activePatient ? activePatient.patient_id : "P-99201"} readOnly className="w-full bg-[#fafafa] border border-brand-border rounded px-2 py-1.5 text-[13px] outline-none" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -680,17 +703,32 @@ export default function SepsisDashboard() {
                   : 'bg-white text-brand-primary border-brand-primary hover:bg-brand-primary/10'
               }`}
             >
-              {isSimulating ? <EyeOff size={14} /> : <Eye size={14} />}
-              {isFileFed ? 'Stop File Feed' : isSimulating ? 'Stop Live Feed' : 'Start Live Feed'}
+              {isSimulating ? <StopCircle size={14} /> : <PlayCircle size={14} />}
+              {isFileFed 
+                ? (isSimulating ? 'Pause File Feed' : 'Start File Feed') 
+                : (isSimulating ? 'Stop Live Feed' : 'Start Live Feed')}
             </button>
-            <button
-              onClick={() => { setIsSimulating(false); setShowPatientPicker(true); }}
-              disabled={isFileFed}
-              className="px-3 py-1.5 text-[12px] font-medium border border-blue-300 bg-blue-50 rounded text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Database size={14} />
-              {isFileFed ? "Feeding…" : "Load Patient File"}
-            </button>
+
+            {isFileFed && (
+              <button
+                onClick={stopFileFeed}
+                className="px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wider border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 flex items-center gap-2 transition-all"
+              >
+                <StopCircle size={14} className="text-gray-400" />
+                Unload File
+              </button>
+            )}
+
+            {!isFileFed && (
+              <button
+                onClick={() => { setIsSimulating(false); setShowPatientPicker(true); }}
+                className="px-3 py-1.5 text-[12px] font-medium border border-blue-300 bg-blue-50 rounded text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1.5"
+              >
+                <Database size={14} />
+                Load Patient File
+              </button>
+            )}
+            
             <div className="text-[12px] text-brand-muted flex items-center gap-1">
               <Clock size={12} />
               Synced: {lastUpdate.toLocaleTimeString()}

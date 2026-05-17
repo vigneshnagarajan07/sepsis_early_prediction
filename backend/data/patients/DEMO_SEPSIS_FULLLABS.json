@@ -1,0 +1,1296 @@
+{
+  "patient_id": "DEMO_SEPSIS_FULLLABS",
+  "label": "Sepsis \u2014 Vitals + Labs",
+  "description": "62-year-old with diabetes and prior antibiotics. Full lab panel every 1.5h. Rising lactate, falling platelets, worsening creatinine \u2014 classic sepsis progression.",
+  "total_readings": 24,
+  "interval_minutes": 15,
+  "readings": [
+    {
+      "timestamp_label": "T+0min",
+      "vitals": {
+        "hr": 88.9,
+        "map": 86.1,
+        "resp": 16.3,
+        "temp": 37.2,
+        "o2sat": 98.0,
+        "systolicBp": 120.9,
+        "gcs": 15,
+        "urineOutput": 0.87,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 1.1,
+          "performed": true
+        },
+        "pct": {
+          "value": 0.06,
+          "performed": true
+        },
+        "wbc": {
+          "value": 8.0,
+          "performed": true
+        },
+        "platelets": {
+          "value": 240.0,
+          "performed": true
+        },
+        "creatinine": {
+          "value": 0.9,
+          "performed": true
+        },
+        "bilirubin": {
+          "value": 0.5,
+          "performed": true
+        },
+        "crp": {
+          "value": 2.0,
+          "performed": true
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+15min",
+      "vitals": {
+        "hr": 87.1,
+        "map": 85.3,
+        "resp": 17.0,
+        "temp": 37.4,
+        "o2sat": 98.2,
+        "systolicBp": 121.8,
+        "gcs": 15,
+        "urineOutput": 0.72,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+30min",
+      "vitals": {
+        "hr": 93.5,
+        "map": 83.0,
+        "resp": 18.0,
+        "temp": 37.4,
+        "o2sat": 96.9,
+        "systolicBp": 120.4,
+        "gcs": 15,
+        "urineOutput": 0.83,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+45min",
+      "vitals": {
+        "hr": 91.7,
+        "map": 83.7,
+        "resp": 17.5,
+        "temp": 37.5,
+        "o2sat": 96.7,
+        "systolicBp": 117.3,
+        "gcs": 15,
+        "urineOutput": 0.7,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+60min",
+      "vitals": {
+        "hr": 97.2,
+        "map": 83.7,
+        "resp": 18.0,
+        "temp": 37.6,
+        "o2sat": 96.5,
+        "systolicBp": 111.3,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+75min",
+      "vitals": {
+        "hr": 99.0,
+        "map": 79.4,
+        "resp": 19.9,
+        "temp": 37.7,
+        "o2sat": 96.0,
+        "systolicBp": 109.6,
+        "gcs": 15,
+        "urineOutput": 0.68,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+90min",
+      "vitals": {
+        "hr": 102.9,
+        "map": 78.7,
+        "resp": 19.9,
+        "temp": 37.8,
+        "o2sat": 95.8,
+        "systolicBp": 108.8,
+        "gcs": 14,
+        "urineOutput": 0.73,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 2.2,
+          "performed": true
+        },
+        "pct": {
+          "value": 4.76,
+          "performed": true
+        },
+        "wbc": {
+          "value": 11.1,
+          "performed": true
+        },
+        "platelets": {
+          "value": 196.0,
+          "performed": true
+        },
+        "creatinine": {
+          "value": 1.34,
+          "performed": true
+        },
+        "bilirubin": {
+          "value": 0.97,
+          "performed": true
+        },
+        "crp": {
+          "value": 38.5,
+          "performed": true
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+105min",
+      "vitals": {
+        "hr": 102.9,
+        "map": 78.2,
+        "resp": 20.6,
+        "temp": 37.9,
+        "o2sat": 95.0,
+        "systolicBp": 105.3,
+        "gcs": 14,
+        "urineOutput": 0.63,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+120min",
+      "vitals": {
+        "hr": 103.9,
+        "map": 76.7,
+        "resp": 20.8,
+        "temp": 38.0,
+        "o2sat": 95.6,
+        "systolicBp": 105.4,
+        "gcs": 14,
+        "urineOutput": 0.56,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+135min",
+      "vitals": {
+        "hr": 107.0,
+        "map": 74.2,
+        "resp": 20.7,
+        "temp": 38.0,
+        "o2sat": 94.6,
+        "systolicBp": 102.6,
+        "gcs": 14,
+        "urineOutput": 0.58,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+150min",
+      "vitals": {
+        "hr": 108.6,
+        "map": 74.6,
+        "resp": 22.0,
+        "temp": 38.1,
+        "o2sat": 94.0,
+        "systolicBp": 103.6,
+        "gcs": 14,
+        "urineOutput": 0.55,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+165min",
+      "vitals": {
+        "hr": 112.6,
+        "map": 72.0,
+        "resp": 23.1,
+        "temp": 38.3,
+        "o2sat": 93.5,
+        "systolicBp": 102.2,
+        "gcs": 14,
+        "urineOutput": 0.52,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+180min",
+      "vitals": {
+        "hr": 113.5,
+        "map": 70.9,
+        "resp": 23.7,
+        "temp": 38.3,
+        "o2sat": 92.9,
+        "systolicBp": 99.2,
+        "gcs": 13,
+        "urineOutput": 0.51,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 3.29,
+          "performed": true
+        },
+        "pct": {
+          "value": 9.45,
+          "performed": true
+        },
+        "wbc": {
+          "value": 14.3,
+          "performed": true
+        },
+        "platelets": {
+          "value": 151.0,
+          "performed": true
+        },
+        "creatinine": {
+          "value": 1.79,
+          "performed": true
+        },
+        "bilirubin": {
+          "value": 1.44,
+          "performed": true
+        },
+        "crp": {
+          "value": 75.0,
+          "performed": true
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+195min",
+      "vitals": {
+        "hr": 114.9,
+        "map": 67.6,
+        "resp": 24.0,
+        "temp": 38.3,
+        "o2sat": 93.0,
+        "systolicBp": 96.6,
+        "gcs": 13,
+        "urineOutput": 0.48,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+210min",
+      "vitals": {
+        "hr": 120.0,
+        "map": 67.3,
+        "resp": 24.2,
+        "temp": 38.5,
+        "o2sat": 92.7,
+        "systolicBp": 91.4,
+        "gcs": 13,
+        "urineOutput": 0.47,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+225min",
+      "vitals": {
+        "hr": 119.7,
+        "map": 65.2,
+        "resp": 25.2,
+        "temp": 38.6,
+        "o2sat": 92.5,
+        "systolicBp": 93.1,
+        "gcs": 13,
+        "urineOutput": 0.44,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+240min",
+      "vitals": {
+        "hr": 121.0,
+        "map": 64.4,
+        "resp": 26.0,
+        "temp": 38.8,
+        "o2sat": 91.5,
+        "systolicBp": 90.8,
+        "gcs": 13,
+        "urineOutput": 0.43,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+255min",
+      "vitals": {
+        "hr": 124.8,
+        "map": 62.1,
+        "resp": 25.5,
+        "temp": 38.9,
+        "o2sat": 91.5,
+        "systolicBp": 91.2,
+        "gcs": 13,
+        "urineOutput": 0.52,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+270min",
+      "vitals": {
+        "hr": 126.7,
+        "map": 60.6,
+        "resp": 27.0,
+        "temp": 39.0,
+        "o2sat": 90.4,
+        "systolicBp": 88.1,
+        "gcs": 12,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 4.39,
+          "performed": true
+        },
+        "pct": {
+          "value": 14.15,
+          "performed": true
+        },
+        "wbc": {
+          "value": 17.4,
+          "performed": true
+        },
+        "platelets": {
+          "value": 107.0,
+          "performed": true
+        },
+        "creatinine": {
+          "value": 2.23,
+          "performed": true
+        },
+        "bilirubin": {
+          "value": 1.91,
+          "performed": true
+        },
+        "crp": {
+          "value": 111.6,
+          "performed": true
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+285min",
+      "vitals": {
+        "hr": 125.4,
+        "map": 57.1,
+        "resp": 26.9,
+        "temp": 39.1,
+        "o2sat": 90.3,
+        "systolicBp": 84.8,
+        "gcs": 12,
+        "urineOutput": 0.3,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+300min",
+      "vitals": {
+        "hr": 132.4,
+        "map": 56.5,
+        "resp": 28.8,
+        "temp": 39.1,
+        "o2sat": 89.9,
+        "systolicBp": 83.7,
+        "gcs": 12,
+        "urineOutput": 0.33,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+315min",
+      "vitals": {
+        "hr": 135.8,
+        "map": 56.2,
+        "resp": 28.2,
+        "temp": 39.2,
+        "o2sat": 89.6,
+        "systolicBp": 83.1,
+        "gcs": 12,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+330min",
+      "vitals": {
+        "hr": 135.6,
+        "map": 55.4,
+        "resp": 29.1,
+        "temp": 39.3,
+        "o2sat": 89.4,
+        "systolicBp": 82.9,
+        "gcs": 12,
+        "urineOutput": 0.27,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 0.0,
+          "performed": false
+        },
+        "pct": {
+          "value": 0.0,
+          "performed": false
+        },
+        "wbc": {
+          "value": 0.0,
+          "performed": false
+        },
+        "platelets": {
+          "value": 0.0,
+          "performed": false
+        },
+        "creatinine": {
+          "value": 0.0,
+          "performed": false
+        },
+        "bilirubin": {
+          "value": 0.0,
+          "performed": false
+        },
+        "crp": {
+          "value": 0.0,
+          "performed": false
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+345min",
+      "vitals": {
+        "hr": 137.5,
+        "map": 52.0,
+        "resp": 30.3,
+        "temp": 39.4,
+        "o2sat": 89.1,
+        "systolicBp": 74.2,
+        "gcs": 11,
+        "urineOutput": 0.3,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 5.3,
+          "performed": true
+        },
+        "pct": {
+          "value": 18.06,
+          "performed": true
+        },
+        "wbc": {
+          "value": 20.0,
+          "performed": true
+        },
+        "platelets": {
+          "value": 70.0,
+          "performed": true
+        },
+        "creatinine": {
+          "value": 2.6,
+          "performed": true
+        },
+        "bilirubin": {
+          "value": 2.3,
+          "performed": true
+        },
+        "crp": {
+          "value": 142.0,
+          "performed": true
+        },
+        "dengueNS1": {
+          "value": 0,
+          "performed": false
+        },
+        "malariaRDT": {
+          "value": 0,
+          "performed": false
+        }
+      }
+    }
+  ],
+  "demographics": {
+    "age": 62,
+    "gender": "Male",
+    "bmi": 24.0,
+    "diabetes": true,
+    "ckd": false,
+    "cirrhosis": false,
+    "malignancy": false,
+    "immunosuppression": false,
+    "priorAntibiotics": true,
+    "referredFromOutside": false,
+    "gramNegativeRisk": true,
+    "malariaEndemic": false,
+    "dengueEndemic": false
+  }
+}

@@ -277,5 +277,6 @@ async def _run_prediction_on_payload(payload: dict) -> dict:
     result["_meta"] = payload["_meta"]
     result["vitals"] = payload["vitals"]
     result["labs"] = payload["labs"]
+    result["vitalsHistory"] = payload["vitalsHistory"]
     result["demographics"] = payload["demographics"]
     return result

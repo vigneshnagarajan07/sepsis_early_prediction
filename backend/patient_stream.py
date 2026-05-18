@@ -170,7 +170,7 @@ def _next_payload_locked(session_id: str) -> dict[str, Any]:
         sess["history"][key] = (sess["history"][key] + [vitals[key]])[-HISTORY_BUFFER:]
 
     for key in LAB_KEYS:
-        lab = labs[key]
+        lab = labs.get(key, {"value": 0.0, "performed": False})
         if lab.get("performed", False):
             sess["lab_history"][key].append({
                 "value": float(lab.get("value", 0.0)),
@@ -287,9 +287,13 @@ def _normalize_vitals(raw: dict[str, Any]) -> dict[str, float]:
 
 
 def _normalize_labs(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    labs = {key: dict(value) for key, value in DEFAULT_LABS.items()}
+    """
+    Returns only the labs present in the raw input.
+    Keys not in raw are omitted, allowing sparse updates in the frontend.
+    """
+    labs = {}
     for key, value in raw.items():
-        if key not in labs or not isinstance(value, dict):
+        if key not in LAB_KEYS or not isinstance(value, dict):
             continue
         labs[key] = {
             "value": float(value.get("value", 0.0)),

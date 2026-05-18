@@ -184,6 +184,10 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
     xgb_vec   : np.ndarray shape (42,)
     feat_dict : plain dict of all features (for logging / SHAP passthrough)
     """
+    import models as m
+    lgbm_feats = m.get_lgbm_features()
+    xgb_feats  = m.get_xgb_features()
+
     v    = payload["vitals"]
     labs = payload["labs"]
     d    = payload["demographics"]
@@ -373,8 +377,8 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
         if isinstance(val, float) and np.isnan(val):
             feat_dict[feat] = _NAN_FALLBACKS.get(feat, 0.0)
 
-    lgbm_vec = np.array([feat_dict[f] for f in LGBM_FEATURES], dtype=np.float64)
-    xgb_vec  = np.array([feat_dict[f] for f in XGB_FEATURES],  dtype=np.float64)
+    lgbm_vec = np.array([feat_dict[f] for f in lgbm_feats], dtype=np.float64)
+    xgb_vec  = np.array([feat_dict[f] for f in xgb_feats],  dtype=np.float64)
 
     return lgbm_vec, xgb_vec, feat_dict
 
@@ -383,43 +387,55 @@ def build_feature_vector(payload: dict) -> tuple[np.ndarray, np.ndarray, dict]:
 # SHAP surrogate
 # ─────────────────────────────────────────────────────────────────────────────
 
-def top_shap_drivers(feat_dict: dict, prob: float) -> list[dict]:
+def top_shap_drivers(feat_dict: dict, result: dict) -> list[dict]:
     """
-    Lightweight rule-based SHAP surrogate.
-    Weights derived from SHAP summary plot — global importance scaled to
-    local context.  Deltas contribute dynamically when non-zero.
+    Native Tree SHAP explainability.
+    Combines raw margin contributions from LGBM and XGBoost streams,
+    weighted by the ensemble fusion logic.
     """
-    WEIGHTS: dict[str, Any] = {
-        "CRT":                   lambda v, p: (v - 2.0) * 0.9 * p,
-        "SpO2":                  lambda v, p: (96 - v) * 0.15 * p,
-        "AMR_Resistance":        lambda v, p:  v * 0.6 * p,
-        "Temp":                  lambda v, p: abs(v - 37.0) * 0.3 * p,
-        "qSOFA":                 lambda v, p:  v * 0.25 * p,
-        "Delta_3h_WBC":          lambda v, p:  v * 0.18 * p,
-        "Delta_3h_Creatinine":   lambda v, p:  v * 0.14 * p,
-        "Delta_3h_HR":           lambda v, p:  v * 0.10 * p,
-        "Delta_3h_Lactate":      lambda v, p:  v * 0.12 * p,
-        "Delta_3h_Platelets":    lambda v, p: -v * 0.10 * p,
-        "Delta_3h_RespRate":     lambda v, p:  v * 0.08 * p,
-        "HRV_SDNN":              lambda v, p: (50 - v) * 0.02 * p,
-        "RespRate":              lambda v, p: max(0, v - 20) * 0.08 * p,
-        "Prior_Unprescribed_Abx":lambda v, p:  v * 0.55 * p,
-        "Referred_Outside":      lambda v, p:  v * 0.45 * p,
-        "Lactate":               lambda v, p: max(0, v - 2.0) * 0.25 * p,
-        "HR":                    lambda v, p: max(0, v - 100) * 0.04 * p,
-        "Diabetes":              lambda v, p:  v * 0.15 * p,
-        "Oliguria":              lambda v, p:  v * 0.35 * p,
-    }
+    shaps = result.get("_shaps", {})
+    lgbm_contrib = shaps.get("lgbm", [])
+    xgb_contrib  = shaps.get("xgb",  [])
+    lgbm_feats   = shaps.get("lgbm_feats", LGBM_FEATURES)
+    xgb_feats    = shaps.get("xgb_feats",  XGB_FEATURES)
+    w_lgbm = shaps.get("w_lgbm", 1.0)
+    w_xgb  = shaps.get("w_xgb",  0.0)
+
+    # Dictionary to aggregate total influence per feature
+    p = result.get("aiScore", 0.5)
+    scale = p * (1.0 - p)
+    
+    total_influence: dict[str, float] = {}
+
+    # 1. Map LGBM contributions
+    if lgbm_contrib:
+        for i, feat in enumerate(lgbm_feats):
+            if i < len(lgbm_contrib) - 1:
+                total_influence[feat] = lgbm_contrib[i] * w_lgbm * scale
+
+    # 2. Map XGBoost contributions (includes labs and TFT_Score)
+    if xgb_contrib:
+        for i, feat in enumerate(xgb_feats):
+            if i < len(xgb_contrib) - 1:
+                contribution = xgb_contrib[i] * w_xgb * scale
+                if feat == "TFT_Score":
+                    # Distribute TFT_Score contribution back to vitals
+                    lgbm_total = sum(abs(v) for v in total_influence.values()) or 1.0
+                    for f, v in total_influence.items():
+                        total_influence[f] += contribution * (abs(v) / lgbm_total)
+                else:
+                    total_influence[feat] = total_influence.get(feat, 0.0) + contribution
+
+    # 3. Format for UI
     scores = []
-    for feat, fn in WEIGHTS.items():
-        val = feat_dict.get(feat, 0.0)
-        influence = fn(float(val), float(prob))
-        if abs(influence) > 0.001:
+    for feat, influence in total_influence.items():
+        if abs(influence) > 0.0001:
             scores.append({
                 "feature": feat,
-                "value":   round(float(val), 3),
+                "value":   round(float(feat_dict.get(feat, 0.0)), 3),
                 "shap":    round(float(influence), 4),
             })
 
+    # Sort by absolute influence
     scores.sort(key=lambda x: abs(x["shap"]), reverse=True)
     return scores[:8]

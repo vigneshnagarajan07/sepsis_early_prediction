@@ -201,7 +201,7 @@ async def predict(req: PredictRequest, request: Request):
     try:
         lgbm_vec, xgb_vec, feat_dict = feat_eng.build_feature_vector(payload)
         result = await run_in_threadpool(model_eng.predict, lgbm_vec, xgb_vec, feat_dict, payload)
-        result["shapDrivers"] = feat_eng.top_shap_drivers(feat_dict, result["aiScore"])
+        result["shapDrivers"] = feat_eng.top_shap_drivers(feat_dict, result)
         result["deltaInfo"] = {
             "sourceReadings":  feat_dict.get("DeltaSourceReadings", 0),
             "deltaHR":         round(feat_dict.get("Delta_3h_HR", 0.0), 2),
@@ -274,6 +274,7 @@ async def session_stop(x_session_id: Annotated[Optional[str], Header(alias="X-Se
 async def _run_prediction_on_payload(payload: dict) -> dict:
     lgbm_vec, xgb_vec, feat_dict = feat_eng.build_feature_vector(payload)
     result = await run_in_threadpool(model_eng.predict, lgbm_vec, xgb_vec, feat_dict, payload)
+    result["shapDrivers"] = feat_eng.top_shap_drivers(feat_dict, result)
     result["_meta"] = payload["_meta"]
     result["vitals"] = payload["vitals"]
     result["labs"] = payload["labs"]

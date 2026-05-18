@@ -85,8 +85,18 @@ interface PatientMeta {
 
 // --- Components ---
 
+// --- Constants ---
+const API_BASE = (import.meta.env.VITE_API_URL as string) || '';
+
 export default function SepsisDashboard() {
   const [sessionId] = useState(() => crypto.randomUUID());
+  const apiKey = (import.meta.env.VITE_API_KEY as string) || '';
+
+  const getHeaders = useCallback((extra: Record<string, string> = {}) => ({
+    'X-Session-ID': sessionId,
+    'X-API-Key': apiKey,
+    ...extra
+  }), [sessionId, apiKey]);
 
   // 1. Patient Demographics (Sidebar)
   const [demographics, setDemographics] = useState<PatientDemographics>({
@@ -196,12 +206,9 @@ export default function SepsisDashboard() {
     const labsSnapshot = labs;
 
     try {
-      const response = await fetch('/api/predict', {
+      const response = await fetch(`${API_BASE}/api/predict`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Session-ID': sessionId
-        },
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           vitals,
           labs,
@@ -244,7 +251,7 @@ export default function SepsisDashboard() {
   // ─── File-Feed Pipeline ──────────────────────────────────────────
   // Loads patient list on mount
   useEffect(() => {
-    fetch('/api/patients', { headers: { 'X-Session-ID': sessionId } })
+    fetch(`${API_BASE}/api/patients`, { headers: getHeaders() })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => setPatients(d.patients || []))
       .catch(err => {
@@ -311,12 +318,9 @@ export default function SepsisDashboard() {
     setIsAnalyzing(true);
     setAnalysisError(null);
     try {
-      const res = await fetch('/api/session/start', {
+      const res = await fetch(`${API_BASE}/api/session/start`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Session-ID': sessionId
-        },
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ patient_id: patientId }),
       });
       if (!res.ok) {
@@ -346,9 +350,9 @@ export default function SepsisDashboard() {
       const pollMs = 2000;
       const tick = async () => {
         try {
-          const tickRes = await fetch('/api/session/tick', { 
+          const tickRes = await fetch(`${API_BASE}/api/session/tick`, { 
             method: 'POST',
-            headers: { 'X-Session-ID': sessionId }
+            headers: getHeaders()
           });
           const tickData = await tickRes.json();
           if (tickData.done) {
@@ -398,9 +402,9 @@ export default function SepsisDashboard() {
     });
     setResult(null);
 
-    fetch('/api/session/stop', { 
+    fetch(`${API_BASE}/api/session/stop`, { 
       method: 'POST',
-      headers: { 'X-Session-ID': sessionId }
+      headers: getHeaders()
     }).catch(() => {});
   }, [sessionId]);
 
@@ -923,21 +927,6 @@ export default function SepsisDashboard() {
                     exit={{ opacity: 0 }}
                     className="flex flex-col gap-3"
                   >
-                    {/* Data Quality Warning Banner — shown when labs are absent/partial */}
-                    {result.dataQualityWarnings?.length > 0 && (
-                      <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex flex-col gap-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-amber-600 font-bold text-[12px] uppercase tracking-wide">⚠ Reduced Prediction Confidence</span>
-                          <span className="ml-auto text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-300 rounded px-2 py-0.5">
-                            Confidence {Math.round(result.confidenceScore * 100)}%
-                          </span>
-                        </div>
-                        {result.dataQualityWarnings.map((w, i) => (
-                          <p key={i} className="text-[12px] text-amber-800 leading-snug">{w}</p>
-                        ))}
-                      </div>
-                    )}
-
                     <div className={`rounded-lg p-5 flex border-2 gap-5 items-center transition-all ${
                       result.alertLevel === 'critical' ? 'bg-[#fff5f5] border-brand-danger text-brand-text shadow-sm' :
                       result.alertLevel === 'warning' ? 'bg-orange-50 border-brand-warning text-brand-text' :

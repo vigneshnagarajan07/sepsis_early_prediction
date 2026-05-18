@@ -1,6 +1,6 @@
 """
-COIMBATORE SEPSIS AI — COMPLETE PRODUCTION TRAINING PIPELINE
-=============================================================
+SEPSIS AI — COMPLETE PRODUCTION TRAINING PIPELINE
+=================================================
 Single cell. Paste entirely into one Colab cell and run.
 
 Architecture:
@@ -59,8 +59,8 @@ from sklearn.metrics       import (
 # FIX #9: configurable paths — override OUTPUT_DIR for local runs
 import os
 OUTPUT_DIR = os.getenv("SEPSIS_OUTPUT_DIR", "/content")
-TS_PATH    = os.getenv("SEPSIS_TS_PATH",   "/content/coimbatore_v2_timeseries.csv")
-META_PATH  = os.getenv("SEPSIS_META_PATH", "/content/coimbatore_v2_meta.csv")
+TS_PATH    = os.getenv("SEPSIS_TS_PATH",   "/content/v2_timeseries.csv")
+META_PATH  = os.getenv("SEPSIS_META_PATH", "/content/v2_meta.csv")
 
 # ─────────────────────────────────────────────────────────────────
 # FEATURE REGISTRY
@@ -101,7 +101,7 @@ LAB_BOOSTER_COLS = VITAL_FEAT + [
 ]  # 36 + 14 = 50 features
 
 print("="*60)
-print("  COIMBATORE SEPSIS AI — PRODUCTION TRAINING")
+print("  SEPSIS AI — PRODUCTION TRAINING")
 # sklearn version check — Platt scaler must be loaded with same version
 print(f"  sklearn version: {sklearn.__version__}  "
       "(record this — platt_scaler.pkl must be loaded with same major version)")
@@ -628,7 +628,7 @@ axes[3].bar(["GREEN","AMBER","RED"], tier_ppvs,
 axes[3].set(title="PPV per alert tier", ylabel="Fraction truly septic", ylim=[0,1])
 axes[3].grid(alpha=0.3, axis="y")
 
-plt.suptitle("Coimbatore Sepsis AI — Evaluation Results", fontsize=13, y=1.01)
+plt.suptitle("Sepsis AI — Evaluation Results", fontsize=13, y=1.01)
 plt.tight_layout()
 plt.savefig(f"{OUTPUT_DIR}/evaluation_results.png", bbox_inches="tight", dpi=150)
 plt.show()

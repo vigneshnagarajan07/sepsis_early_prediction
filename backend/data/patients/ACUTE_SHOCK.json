@@ -1,0 +1,2972 @@
+{
+  "patient_id": "ACUTE_SHOCK",
+  "label": "1. Acute Septic Shock",
+  "description": "Rapid progression from baseline to multi-organ failure. High Lactate/Tachycardia.",
+  "total_readings": 180,
+  "interval_minutes": 1,
+  "demographics": {
+    "age": 55,
+    "gender": "Male",
+    "bmi": 25.0,
+    "diabetes": true,
+    "ckd": false,
+    "cirrhosis": false,
+    "malignancy": false,
+    "immunosuppression": false,
+    "priorAntibiotics": true,
+    "referredFromOutside": false,
+    "gramNegativeRisk": true,
+    "malariaEndemic": false,
+    "dengueEndemic": false
+  },
+  "readings": [
+    {
+      "timestamp_label": "T+0m",
+      "vitals": {
+        "hr": 76.1,
+        "map": 88.8,
+        "resp": 17.0,
+        "temp": 36.8,
+        "o2sat": 98.6,
+        "systolicBp": 119.0,
+        "gcs": 15,
+        "urineOutput": 0.8,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 1.1,
+          "performed": true
+        },
+        "platelets": {
+          "value": 249.0,
+          "performed": true
+        },
+        "wbc": {
+          "value": 7.6,
+          "performed": true
+        },
+        "creatinine": {
+          "value": 0.8,
+          "performed": true
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+1m",
+      "vitals": {
+        "hr": 74.7,
+        "map": 89.1,
+        "resp": 16.0,
+        "temp": 36.9,
+        "o2sat": 98.2,
+        "systolicBp": 122.0,
+        "gcs": 15,
+        "urineOutput": 0.8,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+2m",
+      "vitals": {
+        "hr": 77.3,
+        "map": 88.1,
+        "resp": 16.4,
+        "temp": 36.8,
+        "o2sat": 98.3,
+        "systolicBp": 122.9,
+        "gcs": 15,
+        "urineOutput": 0.8,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+3m",
+      "vitals": {
+        "hr": 75.8,
+        "map": 88.1,
+        "resp": 15.6,
+        "temp": 36.8,
+        "o2sat": 98.4,
+        "systolicBp": 123.4,
+        "gcs": 15,
+        "urineOutput": 0.8,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+4m",
+      "vitals": {
+        "hr": 76.6,
+        "map": 89.9,
+        "resp": 15.4,
+        "temp": 36.8,
+        "o2sat": 98.4,
+        "systolicBp": 122.7,
+        "gcs": 15,
+        "urineOutput": 0.8,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+5m",
+      "vitals": {
+        "hr": 74.0,
+        "map": 88.9,
+        "resp": 16.5,
+        "temp": 36.8,
+        "o2sat": 98.5,
+        "systolicBp": 119.9,
+        "gcs": 15,
+        "urineOutput": 0.8,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+6m",
+      "vitals": {
+        "hr": 75.6,
+        "map": 90.5,
+        "resp": 16.9,
+        "temp": 36.9,
+        "o2sat": 98.5,
+        "systolicBp": 118.8,
+        "gcs": 15,
+        "urineOutput": 0.8,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+7m",
+      "vitals": {
+        "hr": 75.3,
+        "map": 89.9,
+        "resp": 16.2,
+        "temp": 36.8,
+        "o2sat": 98.1,
+        "systolicBp": 119.8,
+        "gcs": 15,
+        "urineOutput": 0.8,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+8m",
+      "vitals": {
+        "hr": 74.0,
+        "map": 92.1,
+        "resp": 17.0,
+        "temp": 36.9,
+        "o2sat": 98.2,
+        "systolicBp": 120.7,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+9m",
+      "vitals": {
+        "hr": 77.3,
+        "map": 88.7,
+        "resp": 15.4,
+        "temp": 36.9,
+        "o2sat": 98.6,
+        "systolicBp": 116.7,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+10m",
+      "vitals": {
+        "hr": 76.4,
+        "map": 87.1,
+        "resp": 16.8,
+        "temp": 36.9,
+        "o2sat": 98.2,
+        "systolicBp": 119.5,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+11m",
+      "vitals": {
+        "hr": 76.4,
+        "map": 87.3,
+        "resp": 16.5,
+        "temp": 36.8,
+        "o2sat": 98.8,
+        "systolicBp": 117.9,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+12m",
+      "vitals": {
+        "hr": 75.2,
+        "map": 89.0,
+        "resp": 16.6,
+        "temp": 36.9,
+        "o2sat": 97.9,
+        "systolicBp": 117.8,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+13m",
+      "vitals": {
+        "hr": 77.2,
+        "map": 88.2,
+        "resp": 16.8,
+        "temp": 36.8,
+        "o2sat": 98.6,
+        "systolicBp": 120.8,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+14m",
+      "vitals": {
+        "hr": 76.0,
+        "map": 87.3,
+        "resp": 15.6,
+        "temp": 36.8,
+        "o2sat": 98.8,
+        "systolicBp": 118.0,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+15m",
+      "vitals": {
+        "hr": 76.4,
+        "map": 91.8,
+        "resp": 15.6,
+        "temp": 36.9,
+        "o2sat": 98.1,
+        "systolicBp": 121.1,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+16m",
+      "vitals": {
+        "hr": 77.3,
+        "map": 88.9,
+        "resp": 16.2,
+        "temp": 36.8,
+        "o2sat": 98.1,
+        "systolicBp": 119.2,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+17m",
+      "vitals": {
+        "hr": 77.3,
+        "map": 89.4,
+        "resp": 16.3,
+        "temp": 36.8,
+        "o2sat": 98.5,
+        "systolicBp": 120.0,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+18m",
+      "vitals": {
+        "hr": 76.5,
+        "map": 89.5,
+        "resp": 16.7,
+        "temp": 36.9,
+        "o2sat": 98.0,
+        "systolicBp": 117.1,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+19m",
+      "vitals": {
+        "hr": 78.2,
+        "map": 90.9,
+        "resp": 15.4,
+        "temp": 36.9,
+        "o2sat": 98.5,
+        "systolicBp": 119.3,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+20m",
+      "vitals": {
+        "hr": 76.6,
+        "map": 89.9,
+        "resp": 16.9,
+        "temp": 36.9,
+        "o2sat": 98.8,
+        "systolicBp": 115.6,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+21m",
+      "vitals": {
+        "hr": 74.6,
+        "map": 90.2,
+        "resp": 17.0,
+        "temp": 36.8,
+        "o2sat": 98.4,
+        "systolicBp": 119.1,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+22m",
+      "vitals": {
+        "hr": 74.9,
+        "map": 89.7,
+        "resp": 17.1,
+        "temp": 36.8,
+        "o2sat": 98.0,
+        "systolicBp": 122.8,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+23m",
+      "vitals": {
+        "hr": 77.0,
+        "map": 88.2,
+        "resp": 16.5,
+        "temp": 36.8,
+        "o2sat": 98.6,
+        "systolicBp": 122.6,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+24m",
+      "vitals": {
+        "hr": 76.0,
+        "map": 89.3,
+        "resp": 15.9,
+        "temp": 36.8,
+        "o2sat": 98.3,
+        "systolicBp": 116.2,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+25m",
+      "vitals": {
+        "hr": 75.3,
+        "map": 87.5,
+        "resp": 16.9,
+        "temp": 37.0,
+        "o2sat": 98.0,
+        "systolicBp": 116.0,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+26m",
+      "vitals": {
+        "hr": 75.3,
+        "map": 88.0,
+        "resp": 16.9,
+        "temp": 36.9,
+        "o2sat": 98.1,
+        "systolicBp": 116.4,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+27m",
+      "vitals": {
+        "hr": 75.8,
+        "map": 90.3,
+        "resp": 16.0,
+        "temp": 36.8,
+        "o2sat": 98.5,
+        "systolicBp": 121.4,
+        "gcs": 15,
+        "urineOutput": 0.79,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+28m",
+      "vitals": {
+        "hr": 78.4,
+        "map": 86.3,
+        "resp": 15.9,
+        "temp": 36.9,
+        "o2sat": 98.4,
+        "systolicBp": 114.8,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+29m",
+      "vitals": {
+        "hr": 76.3,
+        "map": 89.3,
+        "resp": 17.0,
+        "temp": 36.8,
+        "o2sat": 98.6,
+        "systolicBp": 119.1,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+30m",
+      "vitals": {
+        "hr": 77.1,
+        "map": 85.7,
+        "resp": 17.2,
+        "temp": 36.9,
+        "o2sat": 98.0,
+        "systolicBp": 118.5,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+31m",
+      "vitals": {
+        "hr": 75.8,
+        "map": 86.5,
+        "resp": 15.8,
+        "temp": 37.0,
+        "o2sat": 97.8,
+        "systolicBp": 114.2,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+32m",
+      "vitals": {
+        "hr": 79.2,
+        "map": 89.8,
+        "resp": 15.8,
+        "temp": 36.9,
+        "o2sat": 98.1,
+        "systolicBp": 121.1,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+33m",
+      "vitals": {
+        "hr": 76.6,
+        "map": 87.5,
+        "resp": 16.2,
+        "temp": 36.9,
+        "o2sat": 97.8,
+        "systolicBp": 117.0,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+34m",
+      "vitals": {
+        "hr": 76.5,
+        "map": 89.4,
+        "resp": 16.6,
+        "temp": 36.9,
+        "o2sat": 98.2,
+        "systolicBp": 116.3,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+35m",
+      "vitals": {
+        "hr": 78.5,
+        "map": 88.1,
+        "resp": 17.0,
+        "temp": 36.8,
+        "o2sat": 97.8,
+        "systolicBp": 120.8,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+36m",
+      "vitals": {
+        "hr": 77.7,
+        "map": 87.1,
+        "resp": 15.8,
+        "temp": 36.9,
+        "o2sat": 98.2,
+        "systolicBp": 119.8,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+37m",
+      "vitals": {
+        "hr": 79.6,
+        "map": 90.7,
+        "resp": 17.0,
+        "temp": 37.0,
+        "o2sat": 98.2,
+        "systolicBp": 120.0,
+        "gcs": 15,
+        "urineOutput": 0.78,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+38m",
+      "vitals": {
+        "hr": 78.6,
+        "map": 86.0,
+        "resp": 17.6,
+        "temp": 36.9,
+        "o2sat": 97.7,
+        "systolicBp": 117.7,
+        "gcs": 15,
+        "urineOutput": 0.77,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+39m",
+      "vitals": {
+        "hr": 78.0,
+        "map": 87.7,
+        "resp": 16.3,
+        "temp": 37.1,
+        "o2sat": 98.0,
+        "systolicBp": 116.8,
+        "gcs": 15,
+        "urineOutput": 0.77,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+40m",
+      "vitals": {
+        "hr": 77.6,
+        "map": 87.6,
+        "resp": 17.7,
+        "temp": 36.9,
+        "o2sat": 97.8,
+        "systolicBp": 117.4,
+        "gcs": 15,
+        "urineOutput": 0.77,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+41m",
+      "vitals": {
+        "hr": 80.0,
+        "map": 87.8,
+        "resp": 16.2,
+        "temp": 37.0,
+        "o2sat": 98.1,
+        "systolicBp": 117.7,
+        "gcs": 15,
+        "urineOutput": 0.77,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+42m",
+      "vitals": {
+        "hr": 80.8,
+        "map": 89.3,
+        "resp": 16.5,
+        "temp": 37.1,
+        "o2sat": 97.8,
+        "systolicBp": 114.0,
+        "gcs": 15,
+        "urineOutput": 0.77,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+43m",
+      "vitals": {
+        "hr": 81.1,
+        "map": 88.9,
+        "resp": 16.3,
+        "temp": 37.1,
+        "o2sat": 97.5,
+        "systolicBp": 114.6,
+        "gcs": 15,
+        "urineOutput": 0.77,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+44m",
+      "vitals": {
+        "hr": 80.8,
+        "map": 85.3,
+        "resp": 16.5,
+        "temp": 37.0,
+        "o2sat": 97.5,
+        "systolicBp": 112.6,
+        "gcs": 15,
+        "urineOutput": 0.76,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+45m",
+      "vitals": {
+        "hr": 82.4,
+        "map": 87.1,
+        "resp": 17.7,
+        "temp": 37.0,
+        "o2sat": 97.8,
+        "systolicBp": 113.9,
+        "gcs": 15,
+        "urineOutput": 0.76,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+46m",
+      "vitals": {
+        "hr": 82.6,
+        "map": 84.8,
+        "resp": 18.2,
+        "temp": 37.0,
+        "o2sat": 97.4,
+        "systolicBp": 112.4,
+        "gcs": 15,
+        "urineOutput": 0.76,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+47m",
+      "vitals": {
+        "hr": 80.1,
+        "map": 89.5,
+        "resp": 16.7,
+        "temp": 37.1,
+        "o2sat": 97.9,
+        "systolicBp": 115.6,
+        "gcs": 15,
+        "urineOutput": 0.76,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+48m",
+      "vitals": {
+        "hr": 81.3,
+        "map": 88.5,
+        "resp": 17.8,
+        "temp": 37.1,
+        "o2sat": 98.1,
+        "systolicBp": 111.8,
+        "gcs": 15,
+        "urineOutput": 0.76,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+49m",
+      "vitals": {
+        "hr": 82.7,
+        "map": 87.3,
+        "resp": 16.7,
+        "temp": 37.2,
+        "o2sat": 98.1,
+        "systolicBp": 113.6,
+        "gcs": 15,
+        "urineOutput": 0.75,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+50m",
+      "vitals": {
+        "hr": 84.3,
+        "map": 84.2,
+        "resp": 16.8,
+        "temp": 37.2,
+        "o2sat": 98.0,
+        "systolicBp": 113.0,
+        "gcs": 15,
+        "urineOutput": 0.75,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+51m",
+      "vitals": {
+        "hr": 82.4,
+        "map": 86.1,
+        "resp": 17.2,
+        "temp": 37.0,
+        "o2sat": 97.1,
+        "systolicBp": 111.5,
+        "gcs": 15,
+        "urineOutput": 0.75,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+52m",
+      "vitals": {
+        "hr": 81.4,
+        "map": 84.3,
+        "resp": 17.6,
+        "temp": 37.1,
+        "o2sat": 97.2,
+        "systolicBp": 118.2,
+        "gcs": 15,
+        "urineOutput": 0.75,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+53m",
+      "vitals": {
+        "hr": 84.3,
+        "map": 83.8,
+        "resp": 17.1,
+        "temp": 37.2,
+        "o2sat": 97.3,
+        "systolicBp": 112.5,
+        "gcs": 15,
+        "urineOutput": 0.74,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+54m",
+      "vitals": {
+        "hr": 83.1,
+        "map": 83.1,
+        "resp": 18.6,
+        "temp": 37.2,
+        "o2sat": 97.5,
+        "systolicBp": 113.5,
+        "gcs": 15,
+        "urineOutput": 0.74,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+55m",
+      "vitals": {
+        "hr": 84.4,
+        "map": 82.0,
+        "resp": 18.6,
+        "temp": 37.2,
+        "o2sat": 97.6,
+        "systolicBp": 110.5,
+        "gcs": 15,
+        "urineOutput": 0.74,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+56m",
+      "vitals": {
+        "hr": 86.5,
+        "map": 84.5,
+        "resp": 18.3,
+        "temp": 37.3,
+        "o2sat": 96.8,
+        "systolicBp": 116.6,
+        "gcs": 15,
+        "urineOutput": 0.73,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+57m",
+      "vitals": {
+        "hr": 83.8,
+        "map": 86.8,
+        "resp": 19.1,
+        "temp": 37.2,
+        "o2sat": 97.2,
+        "systolicBp": 115.5,
+        "gcs": 15,
+        "urineOutput": 0.73,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+58m",
+      "vitals": {
+        "hr": 84.7,
+        "map": 85.8,
+        "resp": 19.1,
+        "temp": 37.3,
+        "o2sat": 97.0,
+        "systolicBp": 111.5,
+        "gcs": 15,
+        "urineOutput": 0.73,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+59m",
+      "vitals": {
+        "hr": 87.8,
+        "map": 83.8,
+        "resp": 17.8,
+        "temp": 37.2,
+        "o2sat": 97.0,
+        "systolicBp": 113.4,
+        "gcs": 15,
+        "urineOutput": 0.72,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+60m",
+      "vitals": {
+        "hr": 87.5,
+        "map": 82.6,
+        "resp": 19.0,
+        "temp": 37.2,
+        "o2sat": 97.0,
+        "systolicBp": 112.1,
+        "gcs": 15,
+        "urineOutput": 0.72,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 1.9,
+          "performed": true
+        },
+        "platelets": {
+          "value": 234.0,
+          "performed": true
+        },
+        "wbc": {
+          "value": 9.9,
+          "performed": true
+        },
+        "creatinine": {
+          "value": 1.0,
+          "performed": true
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+61m",
+      "vitals": {
+        "hr": 87.9,
+        "map": 85.8,
+        "resp": 18.6,
+        "temp": 37.3,
+        "o2sat": 96.4,
+        "systolicBp": 113.7,
+        "gcs": 15,
+        "urineOutput": 0.72,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+62m",
+      "vitals": {
+        "hr": 86.9,
+        "map": 83.4,
+        "resp": 19.5,
+        "temp": 37.4,
+        "o2sat": 96.4,
+        "systolicBp": 108.7,
+        "gcs": 15,
+        "urineOutput": 0.71,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+63m",
+      "vitals": {
+        "hr": 88.5,
+        "map": 85.5,
+        "resp": 18.0,
+        "temp": 37.4,
+        "o2sat": 96.5,
+        "systolicBp": 107.9,
+        "gcs": 15,
+        "urineOutput": 0.71,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+64m",
+      "vitals": {
+        "hr": 91.3,
+        "map": 83.0,
+        "resp": 19.9,
+        "temp": 37.3,
+        "o2sat": 96.4,
+        "systolicBp": 108.0,
+        "gcs": 15,
+        "urineOutput": 0.7,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+65m",
+      "vitals": {
+        "hr": 89.8,
+        "map": 82.5,
+        "resp": 19.5,
+        "temp": 37.3,
+        "o2sat": 96.5,
+        "systolicBp": 108.3,
+        "gcs": 15,
+        "urineOutput": 0.7,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+66m",
+      "vitals": {
+        "hr": 92.5,
+        "map": 79.4,
+        "resp": 19.3,
+        "temp": 37.5,
+        "o2sat": 96.6,
+        "systolicBp": 107.6,
+        "gcs": 15,
+        "urineOutput": 0.7,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+67m",
+      "vitals": {
+        "hr": 90.6,
+        "map": 81.2,
+        "resp": 19.7,
+        "temp": 37.4,
+        "o2sat": 95.9,
+        "systolicBp": 106.5,
+        "gcs": 15,
+        "urineOutput": 0.69,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+68m",
+      "vitals": {
+        "hr": 93.7,
+        "map": 78.5,
+        "resp": 19.0,
+        "temp": 37.4,
+        "o2sat": 96.5,
+        "systolicBp": 105.0,
+        "gcs": 15,
+        "urineOutput": 0.69,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+69m",
+      "vitals": {
+        "hr": 92.8,
+        "map": 80.2,
+        "resp": 19.0,
+        "temp": 37.5,
+        "o2sat": 96.6,
+        "systolicBp": 110.0,
+        "gcs": 15,
+        "urineOutput": 0.68,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+70m",
+      "vitals": {
+        "hr": 92.7,
+        "map": 77.5,
+        "resp": 20.9,
+        "temp": 37.6,
+        "o2sat": 95.8,
+        "systolicBp": 107.5,
+        "gcs": 15,
+        "urineOutput": 0.68,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+71m",
+      "vitals": {
+        "hr": 95.7,
+        "map": 80.3,
+        "resp": 21.0,
+        "temp": 37.5,
+        "o2sat": 96.3,
+        "systolicBp": 105.3,
+        "gcs": 15,
+        "urineOutput": 0.67,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+72m",
+      "vitals": {
+        "hr": 93.9,
+        "map": 79.1,
+        "resp": 20.0,
+        "temp": 37.7,
+        "o2sat": 95.6,
+        "systolicBp": 106.4,
+        "gcs": 15,
+        "urineOutput": 0.67,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+73m",
+      "vitals": {
+        "hr": 94.2,
+        "map": 75.8,
+        "resp": 20.3,
+        "temp": 37.6,
+        "o2sat": 95.2,
+        "systolicBp": 104.8,
+        "gcs": 15,
+        "urineOutput": 0.66,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+74m",
+      "vitals": {
+        "hr": 97.4,
+        "map": 77.3,
+        "resp": 20.8,
+        "temp": 37.7,
+        "o2sat": 95.8,
+        "systolicBp": 103.0,
+        "gcs": 15,
+        "urineOutput": 0.65,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+75m",
+      "vitals": {
+        "hr": 99.6,
+        "map": 79.1,
+        "resp": 19.9,
+        "temp": 37.6,
+        "o2sat": 95.1,
+        "systolicBp": 102.5,
+        "gcs": 15,
+        "urineOutput": 0.65,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+76m",
+      "vitals": {
+        "hr": 97.1,
+        "map": 76.0,
+        "resp": 21.4,
+        "temp": 37.7,
+        "o2sat": 95.7,
+        "systolicBp": 101.7,
+        "gcs": 15,
+        "urineOutput": 0.64,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+77m",
+      "vitals": {
+        "hr": 99.9,
+        "map": 74.0,
+        "resp": 21.3,
+        "temp": 37.8,
+        "o2sat": 95.4,
+        "systolicBp": 102.9,
+        "gcs": 15,
+        "urineOutput": 0.64,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+78m",
+      "vitals": {
+        "hr": 100.0,
+        "map": 77.5,
+        "resp": 20.6,
+        "temp": 37.9,
+        "o2sat": 94.7,
+        "systolicBp": 99.8,
+        "gcs": 15,
+        "urineOutput": 0.63,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+79m",
+      "vitals": {
+        "hr": 99.8,
+        "map": 73.9,
+        "resp": 22.2,
+        "temp": 37.8,
+        "o2sat": 94.9,
+        "systolicBp": 102.7,
+        "gcs": 15,
+        "urineOutput": 0.62,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+80m",
+      "vitals": {
+        "hr": 102.0,
+        "map": 76.6,
+        "resp": 21.7,
+        "temp": 37.9,
+        "o2sat": 95.0,
+        "systolicBp": 98.2,
+        "gcs": 15,
+        "urineOutput": 0.62,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+81m",
+      "vitals": {
+        "hr": 101.8,
+        "map": 74.7,
+        "resp": 22.9,
+        "temp": 38.0,
+        "o2sat": 94.7,
+        "systolicBp": 102.2,
+        "gcs": 15,
+        "urineOutput": 0.61,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+82m",
+      "vitals": {
+        "hr": 102.6,
+        "map": 75.8,
+        "resp": 23.1,
+        "temp": 38.0,
+        "o2sat": 94.1,
+        "systolicBp": 100.3,
+        "gcs": 15,
+        "urineOutput": 0.6,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+83m",
+      "vitals": {
+        "hr": 105.1,
+        "map": 73.6,
+        "resp": 22.4,
+        "temp": 38.0,
+        "o2sat": 95.0,
+        "systolicBp": 100.5,
+        "gcs": 15,
+        "urineOutput": 0.6,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+84m",
+      "vitals": {
+        "hr": 107.5,
+        "map": 70.8,
+        "resp": 22.3,
+        "temp": 38.1,
+        "o2sat": 94.3,
+        "systolicBp": 101.0,
+        "gcs": 15,
+        "urineOutput": 0.59,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+85m",
+      "vitals": {
+        "hr": 106.6,
+        "map": 71.7,
+        "resp": 22.6,
+        "temp": 38.1,
+        "o2sat": 94.4,
+        "systolicBp": 95.1,
+        "gcs": 15,
+        "urineOutput": 0.58,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+86m",
+      "vitals": {
+        "hr": 107.1,
+        "map": 69.8,
+        "resp": 22.5,
+        "temp": 38.1,
+        "o2sat": 94.1,
+        "systolicBp": 99.7,
+        "gcs": 15,
+        "urineOutput": 0.58,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+87m",
+      "vitals": {
+        "hr": 109.9,
+        "map": 74.2,
+        "resp": 24.1,
+        "temp": 38.2,
+        "o2sat": 94.3,
+        "systolicBp": 100.5,
+        "gcs": 15,
+        "urineOutput": 0.57,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+88m",
+      "vitals": {
+        "hr": 109.4,
+        "map": 72.5,
+        "resp": 23.8,
+        "temp": 38.2,
+        "o2sat": 93.9,
+        "systolicBp": 94.9,
+        "gcs": 15,
+        "urineOutput": 0.56,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+89m",
+      "vitals": {
+        "hr": 110.8,
+        "map": 69.6,
+        "resp": 24.8,
+        "temp": 38.3,
+        "o2sat": 94.1,
+        "systolicBp": 92.2,
+        "gcs": 15,
+        "urineOutput": 0.56,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+90m",
+      "vitals": {
+        "hr": 113.6,
+        "map": 71.5,
+        "resp": 23.3,
+        "temp": 38.3,
+        "o2sat": 94.0,
+        "systolicBp": 92.0,
+        "gcs": 15,
+        "urineOutput": 0.55,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+91m",
+      "vitals": {
+        "hr": 113.5,
+        "map": 67.7,
+        "resp": 23.7,
+        "temp": 38.3,
+        "o2sat": 92.9,
+        "systolicBp": 96.5,
+        "gcs": 15,
+        "urineOutput": 0.54,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+92m",
+      "vitals": {
+        "hr": 116.3,
+        "map": 67.3,
+        "resp": 25.3,
+        "temp": 38.4,
+        "o2sat": 93.0,
+        "systolicBp": 96.0,
+        "gcs": 15,
+        "urineOutput": 0.54,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+93m",
+      "vitals": {
+        "hr": 114.1,
+        "map": 68.9,
+        "resp": 25.0,
+        "temp": 38.4,
+        "o2sat": 92.9,
+        "systolicBp": 91.4,
+        "gcs": 15,
+        "urineOutput": 0.53,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+94m",
+      "vitals": {
+        "hr": 116.6,
+        "map": 66.3,
+        "resp": 25.7,
+        "temp": 38.6,
+        "o2sat": 93.1,
+        "systolicBp": 90.7,
+        "gcs": 15,
+        "urineOutput": 0.52,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+95m",
+      "vitals": {
+        "hr": 116.9,
+        "map": 68.3,
+        "resp": 24.9,
+        "temp": 38.6,
+        "o2sat": 92.7,
+        "systolicBp": 92.9,
+        "gcs": 15,
+        "urineOutput": 0.52,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+96m",
+      "vitals": {
+        "hr": 118.2,
+        "map": 68.5,
+        "resp": 25.6,
+        "temp": 38.6,
+        "o2sat": 92.3,
+        "systolicBp": 89.2,
+        "gcs": 15,
+        "urineOutput": 0.51,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+97m",
+      "vitals": {
+        "hr": 121.2,
+        "map": 64.8,
+        "resp": 26.1,
+        "temp": 38.5,
+        "o2sat": 92.6,
+        "systolicBp": 89.1,
+        "gcs": 15,
+        "urineOutput": 0.5,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+98m",
+      "vitals": {
+        "hr": 120.9,
+        "map": 63.4,
+        "resp": 26.4,
+        "temp": 38.7,
+        "o2sat": 92.2,
+        "systolicBp": 90.1,
+        "gcs": 15,
+        "urineOutput": 0.5,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+99m",
+      "vitals": {
+        "hr": 122.8,
+        "map": 64.4,
+        "resp": 25.3,
+        "temp": 38.6,
+        "o2sat": 91.8,
+        "systolicBp": 87.6,
+        "gcs": 15,
+        "urineOutput": 0.49,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+100m",
+      "vitals": {
+        "hr": 122.5,
+        "map": 61.9,
+        "resp": 26.7,
+        "temp": 38.7,
+        "o2sat": 92.0,
+        "systolicBp": 91.1,
+        "gcs": 15,
+        "urineOutput": 0.48,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+101m",
+      "vitals": {
+        "hr": 124.5,
+        "map": 64.7,
+        "resp": 26.0,
+        "temp": 38.7,
+        "o2sat": 92.5,
+        "systolicBp": 89.8,
+        "gcs": 15,
+        "urineOutput": 0.48,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+102m",
+      "vitals": {
+        "hr": 125.7,
+        "map": 62.3,
+        "resp": 27.5,
+        "temp": 38.9,
+        "o2sat": 91.4,
+        "systolicBp": 86.3,
+        "gcs": 15,
+        "urineOutput": 0.47,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+103m",
+      "vitals": {
+        "hr": 123.6,
+        "map": 62.6,
+        "resp": 26.9,
+        "temp": 38.9,
+        "o2sat": 92.0,
+        "systolicBp": 85.4,
+        "gcs": 15,
+        "urineOutput": 0.46,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+104m",
+      "vitals": {
+        "hr": 125.3,
+        "map": 63.3,
+        "resp": 27.6,
+        "temp": 38.8,
+        "o2sat": 91.5,
+        "systolicBp": 88.0,
+        "gcs": 15,
+        "urineOutput": 0.46,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+105m",
+      "vitals": {
+        "hr": 127.5,
+        "map": 60.3,
+        "resp": 26.7,
+        "temp": 38.9,
+        "o2sat": 91.5,
+        "systolicBp": 85.3,
+        "gcs": 15,
+        "urineOutput": 0.45,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+106m",
+      "vitals": {
+        "hr": 128.7,
+        "map": 64.1,
+        "resp": 26.7,
+        "temp": 39.0,
+        "o2sat": 91.0,
+        "systolicBp": 86.8,
+        "gcs": 15,
+        "urineOutput": 0.45,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+107m",
+      "vitals": {
+        "hr": 130.3,
+        "map": 60.6,
+        "resp": 27.3,
+        "temp": 38.9,
+        "o2sat": 91.1,
+        "systolicBp": 87.2,
+        "gcs": 15,
+        "urineOutput": 0.44,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+108m",
+      "vitals": {
+        "hr": 128.6,
+        "map": 59.6,
+        "resp": 26.9,
+        "temp": 38.9,
+        "o2sat": 91.3,
+        "systolicBp": 82.3,
+        "gcs": 15,
+        "urineOutput": 0.43,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+109m",
+      "vitals": {
+        "hr": 130.9,
+        "map": 62.7,
+        "resp": 28.2,
+        "temp": 39.0,
+        "o2sat": 91.3,
+        "systolicBp": 81.7,
+        "gcs": 15,
+        "urineOutput": 0.43,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+110m",
+      "vitals": {
+        "hr": 129.6,
+        "map": 62.9,
+        "resp": 27.8,
+        "temp": 39.1,
+        "o2sat": 91.3,
+        "systolicBp": 81.5,
+        "gcs": 15,
+        "urineOutput": 0.42,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+111m",
+      "vitals": {
+        "hr": 132.7,
+        "map": 60.4,
+        "resp": 27.2,
+        "temp": 39.2,
+        "o2sat": 90.8,
+        "systolicBp": 80.8,
+        "gcs": 15,
+        "urineOutput": 0.42,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+112m",
+      "vitals": {
+        "hr": 132.4,
+        "map": 60.7,
+        "resp": 28.8,
+        "temp": 39.2,
+        "o2sat": 90.9,
+        "systolicBp": 77.8,
+        "gcs": 15,
+        "urineOutput": 0.41,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+113m",
+      "vitals": {
+        "hr": 131.8,
+        "map": 59.2,
+        "resp": 27.7,
+        "temp": 39.1,
+        "o2sat": 90.8,
+        "systolicBp": 78.4,
+        "gcs": 15,
+        "urineOutput": 0.41,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+114m",
+      "vitals": {
+        "hr": 136.0,
+        "map": 58.6,
+        "resp": 28.3,
+        "temp": 39.2,
+        "o2sat": 90.1,
+        "systolicBp": 83.9,
+        "gcs": 15,
+        "urineOutput": 0.4,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+115m",
+      "vitals": {
+        "hr": 137.0,
+        "map": 57.1,
+        "resp": 29.4,
+        "temp": 39.3,
+        "o2sat": 90.5,
+        "systolicBp": 81.1,
+        "gcs": 15,
+        "urineOutput": 0.4,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+116m",
+      "vitals": {
+        "hr": 136.2,
+        "map": 58.8,
+        "resp": 28.9,
+        "temp": 39.2,
+        "o2sat": 90.1,
+        "systolicBp": 76.8,
+        "gcs": 15,
+        "urineOutput": 0.4,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+117m",
+      "vitals": {
+        "hr": 138.0,
+        "map": 59.9,
+        "resp": 29.8,
+        "temp": 39.2,
+        "o2sat": 90.6,
+        "systolicBp": 82.0,
+        "gcs": 15,
+        "urineOutput": 0.39,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+118m",
+      "vitals": {
+        "hr": 137.3,
+        "map": 59.6,
+        "resp": 30.2,
+        "temp": 39.3,
+        "o2sat": 90.6,
+        "systolicBp": 79.2,
+        "gcs": 15,
+        "urineOutput": 0.39,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+119m",
+      "vitals": {
+        "hr": 138.5,
+        "map": 56.6,
+        "resp": 29.4,
+        "temp": 39.3,
+        "o2sat": 90.5,
+        "systolicBp": 77.1,
+        "gcs": 15,
+        "urineOutput": 0.38,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+120m",
+      "vitals": {
+        "hr": 138.2,
+        "map": 54.9,
+        "resp": 30.3,
+        "temp": 39.3,
+        "o2sat": 90.4,
+        "systolicBp": 74.0,
+        "gcs": 15,
+        "urineOutput": 0.38,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 5.3,
+          "performed": true
+        },
+        "platelets": {
+          "value": 166.0,
+          "performed": true
+        },
+        "wbc": {
+          "value": 20.1,
+          "performed": true
+        },
+        "creatinine": {
+          "value": 2.1,
+          "performed": true
+        }
+      }
+    },
+    {
+      "timestamp_label": "T+121m",
+      "vitals": {
+        "hr": 137.4,
+        "map": 57.4,
+        "resp": 29.5,
+        "temp": 39.4,
+        "o2sat": 90.2,
+        "systolicBp": 78.3,
+        "gcs": 15,
+        "urineOutput": 0.38,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+122m",
+      "vitals": {
+        "hr": 138.9,
+        "map": 56.1,
+        "resp": 30.5,
+        "temp": 39.4,
+        "o2sat": 89.8,
+        "systolicBp": 74.7,
+        "gcs": 15,
+        "urineOutput": 0.37,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+123m",
+      "vitals": {
+        "hr": 140.9,
+        "map": 54.8,
+        "resp": 30.5,
+        "temp": 39.4,
+        "o2sat": 89.8,
+        "systolicBp": 76.3,
+        "gcs": 15,
+        "urineOutput": 0.37,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+124m",
+      "vitals": {
+        "hr": 140.5,
+        "map": 55.7,
+        "resp": 29.9,
+        "temp": 39.4,
+        "o2sat": 89.6,
+        "systolicBp": 78.6,
+        "gcs": 15,
+        "urineOutput": 0.37,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+125m",
+      "vitals": {
+        "hr": 140.4,
+        "map": 57.7,
+        "resp": 30.1,
+        "temp": 39.5,
+        "o2sat": 89.9,
+        "systolicBp": 76.7,
+        "gcs": 15,
+        "urineOutput": 0.36,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+126m",
+      "vitals": {
+        "hr": 142.3,
+        "map": 56.0,
+        "resp": 30.0,
+        "temp": 39.4,
+        "o2sat": 89.2,
+        "systolicBp": 73.3,
+        "gcs": 15,
+        "urineOutput": 0.36,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+127m",
+      "vitals": {
+        "hr": 139.6,
+        "map": 56.4,
+        "resp": 30.0,
+        "temp": 39.4,
+        "o2sat": 89.3,
+        "systolicBp": 72.7,
+        "gcs": 15,
+        "urineOutput": 0.36,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+128m",
+      "vitals": {
+        "hr": 143.8,
+        "map": 53.0,
+        "resp": 30.5,
+        "temp": 39.5,
+        "o2sat": 89.9,
+        "systolicBp": 72.1,
+        "gcs": 15,
+        "urineOutput": 0.35,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+129m",
+      "vitals": {
+        "hr": 143.7,
+        "map": 52.8,
+        "resp": 29.5,
+        "temp": 39.6,
+        "o2sat": 89.5,
+        "systolicBp": 73.6,
+        "gcs": 15,
+        "urineOutput": 0.35,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+130m",
+      "vitals": {
+        "hr": 144.0,
+        "map": 53.8,
+        "resp": 30.4,
+        "temp": 39.6,
+        "o2sat": 89.5,
+        "systolicBp": 75.4,
+        "gcs": 15,
+        "urineOutput": 0.35,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+131m",
+      "vitals": {
+        "hr": 144.2,
+        "map": 52.7,
+        "resp": 29.6,
+        "temp": 39.6,
+        "o2sat": 89.1,
+        "systolicBp": 78.2,
+        "gcs": 15,
+        "urineOutput": 0.35,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+132m",
+      "vitals": {
+        "hr": 143.0,
+        "map": 56.4,
+        "resp": 31.3,
+        "temp": 39.6,
+        "o2sat": 89.0,
+        "systolicBp": 70.9,
+        "gcs": 15,
+        "urineOutput": 0.34,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+133m",
+      "vitals": {
+        "hr": 144.7,
+        "map": 56.1,
+        "resp": 29.8,
+        "temp": 39.5,
+        "o2sat": 88.9,
+        "systolicBp": 70.4,
+        "gcs": 15,
+        "urineOutput": 0.34,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+134m",
+      "vitals": {
+        "hr": 143.0,
+        "map": 52.9,
+        "resp": 31.6,
+        "temp": 39.6,
+        "o2sat": 89.7,
+        "systolicBp": 74.7,
+        "gcs": 15,
+        "urineOutput": 0.34,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+135m",
+      "vitals": {
+        "hr": 143.4,
+        "map": 54.1,
+        "resp": 30.4,
+        "temp": 39.6,
+        "o2sat": 89.2,
+        "systolicBp": 73.2,
+        "gcs": 15,
+        "urineOutput": 0.34,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+136m",
+      "vitals": {
+        "hr": 143.4,
+        "map": 55.7,
+        "resp": 30.1,
+        "temp": 39.6,
+        "o2sat": 88.9,
+        "systolicBp": 73.0,
+        "gcs": 15,
+        "urineOutput": 0.34,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+137m",
+      "vitals": {
+        "hr": 143.7,
+        "map": 53.8,
+        "resp": 30.6,
+        "temp": 39.6,
+        "o2sat": 89.0,
+        "systolicBp": 74.8,
+        "gcs": 15,
+        "urineOutput": 0.33,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+138m",
+      "vitals": {
+        "hr": 144.3,
+        "map": 55.1,
+        "resp": 31.5,
+        "temp": 39.6,
+        "o2sat": 89.2,
+        "systolicBp": 76.1,
+        "gcs": 15,
+        "urineOutput": 0.33,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+139m",
+      "vitals": {
+        "hr": 146.6,
+        "map": 53.9,
+        "resp": 31.9,
+        "temp": 39.6,
+        "o2sat": 88.9,
+        "systolicBp": 74.1,
+        "gcs": 15,
+        "urineOutput": 0.33,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+140m",
+      "vitals": {
+        "hr": 145.3,
+        "map": 55.1,
+        "resp": 31.6,
+        "temp": 39.6,
+        "o2sat": 89.5,
+        "systolicBp": 72.5,
+        "gcs": 15,
+        "urineOutput": 0.33,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+141m",
+      "vitals": {
+        "hr": 146.1,
+        "map": 52.4,
+        "resp": 31.0,
+        "temp": 39.6,
+        "o2sat": 88.7,
+        "systolicBp": 74.4,
+        "gcs": 15,
+        "urineOutput": 0.33,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+142m",
+      "vitals": {
+        "hr": 146.4,
+        "map": 49.7,
+        "resp": 31.5,
+        "temp": 39.7,
+        "o2sat": 89.0,
+        "systolicBp": 72.7,
+        "gcs": 15,
+        "urineOutput": 0.33,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+143m",
+      "vitals": {
+        "hr": 146.3,
+        "map": 52.2,
+        "resp": 31.0,
+        "temp": 39.6,
+        "o2sat": 89.3,
+        "systolicBp": 73.0,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+144m",
+      "vitals": {
+        "hr": 147.0,
+        "map": 50.0,
+        "resp": 31.2,
+        "temp": 39.6,
+        "o2sat": 89.1,
+        "systolicBp": 74.0,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+145m",
+      "vitals": {
+        "hr": 146.3,
+        "map": 49.9,
+        "resp": 32.0,
+        "temp": 39.7,
+        "o2sat": 88.5,
+        "systolicBp": 74.2,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+146m",
+      "vitals": {
+        "hr": 147.1,
+        "map": 52.5,
+        "resp": 30.8,
+        "temp": 39.8,
+        "o2sat": 88.5,
+        "systolicBp": 75.4,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+147m",
+      "vitals": {
+        "hr": 145.2,
+        "map": 54.1,
+        "resp": 32.2,
+        "temp": 39.7,
+        "o2sat": 88.8,
+        "systolicBp": 70.0,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+148m",
+      "vitals": {
+        "hr": 145.2,
+        "map": 49.7,
+        "resp": 31.2,
+        "temp": 39.6,
+        "o2sat": 88.5,
+        "systolicBp": 73.0,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+149m",
+      "vitals": {
+        "hr": 146.1,
+        "map": 53.0,
+        "resp": 30.7,
+        "temp": 39.7,
+        "o2sat": 88.4,
+        "systolicBp": 68.3,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+150m",
+      "vitals": {
+        "hr": 148.3,
+        "map": 53.7,
+        "resp": 30.7,
+        "temp": 39.8,
+        "o2sat": 88.6,
+        "systolicBp": 72.9,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+151m",
+      "vitals": {
+        "hr": 145.8,
+        "map": 50.1,
+        "resp": 30.7,
+        "temp": 39.6,
+        "o2sat": 88.7,
+        "systolicBp": 72.8,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+152m",
+      "vitals": {
+        "hr": 148.3,
+        "map": 48.6,
+        "resp": 31.0,
+        "temp": 39.7,
+        "o2sat": 88.8,
+        "systolicBp": 68.7,
+        "gcs": 15,
+        "urineOutput": 0.32,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+153m",
+      "vitals": {
+        "hr": 147.3,
+        "map": 50.7,
+        "resp": 31.6,
+        "temp": 39.7,
+        "o2sat": 89.1,
+        "systolicBp": 70.0,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+154m",
+      "vitals": {
+        "hr": 146.3,
+        "map": 49.6,
+        "resp": 31.0,
+        "temp": 39.7,
+        "o2sat": 89.2,
+        "systolicBp": 71.0,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+155m",
+      "vitals": {
+        "hr": 147.2,
+        "map": 51.2,
+        "resp": 30.7,
+        "temp": 39.7,
+        "o2sat": 88.5,
+        "systolicBp": 69.4,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+156m",
+      "vitals": {
+        "hr": 149.7,
+        "map": 49.8,
+        "resp": 31.3,
+        "temp": 39.8,
+        "o2sat": 88.9,
+        "systolicBp": 69.3,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+157m",
+      "vitals": {
+        "hr": 148.0,
+        "map": 48.3,
+        "resp": 32.2,
+        "temp": 39.8,
+        "o2sat": 88.5,
+        "systolicBp": 72.0,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+158m",
+      "vitals": {
+        "hr": 150.3,
+        "map": 48.3,
+        "resp": 31.8,
+        "temp": 39.8,
+        "o2sat": 88.3,
+        "systolicBp": 73.7,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+159m",
+      "vitals": {
+        "hr": 147.3,
+        "map": 50.9,
+        "resp": 31.3,
+        "temp": 39.7,
+        "o2sat": 89.2,
+        "systolicBp": 71.4,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+160m",
+      "vitals": {
+        "hr": 148.3,
+        "map": 50.2,
+        "resp": 32.3,
+        "temp": 39.6,
+        "o2sat": 88.9,
+        "systolicBp": 73.7,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+161m",
+      "vitals": {
+        "hr": 149.5,
+        "map": 48.0,
+        "resp": 31.5,
+        "temp": 39.7,
+        "o2sat": 88.3,
+        "systolicBp": 73.0,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+162m",
+      "vitals": {
+        "hr": 147.7,
+        "map": 52.4,
+        "resp": 31.6,
+        "temp": 39.7,
+        "o2sat": 88.8,
+        "systolicBp": 70.7,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+163m",
+      "vitals": {
+        "hr": 147.7,
+        "map": 49.4,
+        "resp": 32.6,
+        "temp": 39.8,
+        "o2sat": 88.3,
+        "systolicBp": 68.6,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+164m",
+      "vitals": {
+        "hr": 149.4,
+        "map": 49.8,
+        "resp": 31.3,
+        "temp": 39.7,
+        "o2sat": 88.9,
+        "systolicBp": 72.3,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+165m",
+      "vitals": {
+        "hr": 148.2,
+        "map": 51.8,
+        "resp": 30.9,
+        "temp": 39.7,
+        "o2sat": 88.9,
+        "systolicBp": 74.0,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+166m",
+      "vitals": {
+        "hr": 150.2,
+        "map": 53.4,
+        "resp": 32.0,
+        "temp": 39.7,
+        "o2sat": 89.1,
+        "systolicBp": 74.3,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+167m",
+      "vitals": {
+        "hr": 149.1,
+        "map": 49.6,
+        "resp": 31.3,
+        "temp": 39.7,
+        "o2sat": 88.6,
+        "systolicBp": 69.1,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+168m",
+      "vitals": {
+        "hr": 149.2,
+        "map": 50.9,
+        "resp": 31.4,
+        "temp": 39.7,
+        "o2sat": 88.4,
+        "systolicBp": 69.0,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+169m",
+      "vitals": {
+        "hr": 148.3,
+        "map": 48.1,
+        "resp": 31.9,
+        "temp": 39.8,
+        "o2sat": 88.9,
+        "systolicBp": 74.3,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+170m",
+      "vitals": {
+        "hr": 149.3,
+        "map": 49.0,
+        "resp": 30.9,
+        "temp": 39.7,
+        "o2sat": 88.3,
+        "systolicBp": 73.5,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+171m",
+      "vitals": {
+        "hr": 150.5,
+        "map": 48.8,
+        "resp": 31.8,
+        "temp": 39.9,
+        "o2sat": 88.9,
+        "systolicBp": 73.6,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+172m",
+      "vitals": {
+        "hr": 150.3,
+        "map": 51.8,
+        "resp": 31.5,
+        "temp": 39.8,
+        "o2sat": 88.5,
+        "systolicBp": 73.3,
+        "gcs": 15,
+        "urineOutput": 0.31,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+173m",
+      "vitals": {
+        "hr": 150.4,
+        "map": 49.8,
+        "resp": 31.7,
+        "temp": 39.8,
+        "o2sat": 89.0,
+        "systolicBp": 66.8,
+        "gcs": 15,
+        "urineOutput": 0.3,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+174m",
+      "vitals": {
+        "hr": 148.3,
+        "map": 51.6,
+        "resp": 32.2,
+        "temp": 39.7,
+        "o2sat": 88.5,
+        "systolicBp": 69.5,
+        "gcs": 15,
+        "urineOutput": 0.3,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+175m",
+      "vitals": {
+        "hr": 151.1,
+        "map": 51.9,
+        "resp": 31.1,
+        "temp": 39.8,
+        "o2sat": 88.8,
+        "systolicBp": 71.1,
+        "gcs": 15,
+        "urineOutput": 0.3,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+176m",
+      "vitals": {
+        "hr": 148.2,
+        "map": 48.6,
+        "resp": 32.5,
+        "temp": 39.8,
+        "o2sat": 88.4,
+        "systolicBp": 73.0,
+        "gcs": 15,
+        "urineOutput": 0.3,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+177m",
+      "vitals": {
+        "hr": 149.9,
+        "map": 49.4,
+        "resp": 32.7,
+        "temp": 39.7,
+        "o2sat": 88.5,
+        "systolicBp": 70.9,
+        "gcs": 15,
+        "urineOutput": 0.3,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+178m",
+      "vitals": {
+        "hr": 151.2,
+        "map": 49.8,
+        "resp": 32.6,
+        "temp": 39.8,
+        "o2sat": 89.0,
+        "systolicBp": 71.2,
+        "gcs": 15,
+        "urineOutput": 0.3,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {}
+    },
+    {
+      "timestamp_label": "T+179m",
+      "vitals": {
+        "hr": 149.0,
+        "map": 48.3,
+        "resp": 31.6,
+        "temp": 39.8,
+        "o2sat": 88.4,
+        "systolicBp": 68.3,
+        "gcs": 15,
+        "urineOutput": 0.3,
+        "motionArtifact": 0,
+        "sensorDetached": 0
+      },
+      "labs": {
+        "lactate": {
+          "value": 6.1,
+          "performed": true
+        },
+        "platelets": {
+          "value": 151.0,
+          "performed": true
+        },
+        "wbc": {
+          "value": 22.4,
+          "performed": true
+        },
+        "creatinine": {
+          "value": 2.3,
+          "performed": true
+        }
+      }
+    }
+  ]
+}

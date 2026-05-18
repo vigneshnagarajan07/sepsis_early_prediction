@@ -50,6 +50,11 @@ desktop.ini
 # Uncomment the lines below if you do NOT want to track model files in git:
 # backend/xgb_booster.json
 # backend/lgbm_stream1.txt
+backend/lgbm_stream1_fix.txt
+
+# ─── Excluded Artifacts & Test Cases ──────────────────────────────────────────
+backend/*.png
+backend/test_cases.py
 
 # ─── Logs ─────────────────────────────────────────────────────────────────────
 *.log
